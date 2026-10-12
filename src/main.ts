@@ -5,6 +5,8 @@ import { WorldMap } from './world/map';
 import { TrailRenderer } from './graphics/trail';
 import { soundManager } from './audio/synth';
 import { Hud } from './ui/hud';
+import { BotManager } from './entities/botManager';
+import { WeaponManager } from './weapons/weapons';
 
 class Game {
   private renderer!: THREE.WebGLRenderer;
@@ -18,6 +20,8 @@ class Game {
   private trail!: TrailRenderer;
   private hud!: Hud;
   private dirLight!: THREE.DirectionalLight;
+  private botManager!: BotManager;
+  private weaponManager!: WeaponManager;
 
   // Input State
   private input: UserInput = {
@@ -32,6 +36,7 @@ class Game {
   };
 
   private isPointerLocked = false;
+  private isMouseDown = false;
   private lastFrameTime = performance.now();
   private physicsAccumulator = 0;
   private currentRoll = 0;
@@ -41,8 +46,8 @@ class Game {
     this.hudRoot = document.getElementById('hud-root') as HTMLElement;
 
     this.initGraphics();
-    this.initWorld();
     this.initUI();
+    this.initWorld();
     this.attachInputHandlers();
 
     // Start render loop
@@ -132,6 +137,27 @@ class Game {
         this.hud.onWallHit(loss);
       }
     };
+
+    // Bots & Weapons
+    this.botManager = new BotManager(this.scene, this.map.collisionWorld.castleBounds);
+    this.botManager.setBotCount(this.hud.settings.botCount);
+
+    this.weaponManager = new WeaponManager(
+      this.scene,
+      this.camera,
+      this.botManager,
+      this.pmove,
+      {
+        onHitmarker: () => this.hud.triggerHitmarker(),
+        onFrag: () => this.hud.addFrag(),
+        onWeaponChange: (w) => this.hud.setWeapon(w)
+      }
+    );
+    this.hud.setWeapon(this.weaponManager.currentWeapon);
+
+    soundManager.setVolume(this.hud.settings.volume);
+    this.trail.setLifetime(this.hud.settings.trailDuration);
+    this.pmove.setSpeedMultiplier(this.hud.settings.speedMultiplier);
   }
 
   private initUI(): void {
@@ -153,16 +179,13 @@ class Game {
         this.camera.fov = settings.fovBase;
         this.camera.updateProjectionMatrix();
         this.trail.setLifetime(settings.trailDuration);
-        this.pmove.setSpeedMultiplier(settings.speedMultiplier);
+        if (this.pmove) this.pmove.setSpeedMultiplier(settings.speedMultiplier);
+        if (this.botManager) this.botManager.setBotCount(settings.botCount);
       },
       onToggleSound: () => {
         soundManager.toggleMute();
       }
     });
-
-    soundManager.setVolume(this.hud.settings.volume);
-    this.trail.setLifetime(this.hud.settings.trailDuration);
-    this.pmove.setSpeedMultiplier(this.hud.settings.speedMultiplier);
   }
 
   private attachInputHandlers(): void {
@@ -227,6 +250,27 @@ class Game {
         this.requestPointerLock();
       }
     });
+
+    // Mouse buttons for shooting
+    window.addEventListener('mousedown', (e) => {
+      if (e.button === 0 && this.isPointerLocked) {
+        this.isMouseDown = true;
+        this.weaponManager.shoot();
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) {
+        this.isMouseDown = false;
+      }
+    });
+
+    // Weapon Wheel Switch
+    window.addEventListener('wheel', () => {
+      if (this.isPointerLocked) {
+        this.weaponManager.toggleWeapon();
+      }
+    }, { passive: true });
   }
 
   private handleKeyEvent(code: string, isDown: boolean): void {
@@ -253,6 +297,15 @@ class Game {
       case 'ShiftLeft':
       case 'ShiftRight':
         this.input.crouch = isDown;
+        break;
+      case 'Digit1':
+        if (isDown) this.weaponManager.switchWeapon('shotgun');
+        break;
+      case 'Digit2':
+        if (isDown) this.weaponManager.switchWeapon('rocket');
+        break;
+      case 'KeyQ':
+        if (isDown) this.weaponManager.toggleWeapon();
         break;
       case 'KeyR':
         if (isDown) {
@@ -290,6 +343,11 @@ class Game {
 
     const frameTimeSec = Math.min(0.2, (now - this.lastFrameTime) / 1000);
     this.lastFrameTime = now;
+
+    // 0. Auto-shoot if mouse held
+    if (this.isMouseDown && !this.hud.isMenuOpen()) {
+      this.weaponManager.shoot();
+    }
 
     // 1. Fixed 125 Hz Physics Simulation Step Accumulator
     if (!this.hud.isMenuOpen()) {
@@ -352,7 +410,11 @@ class Game {
     // 6. Update Animated Torches & Lights
     this.map.update(now / 1000);
 
-    // 7. Render Scene
+    // 7. Update Bots & Weapons
+    this.botManager.update(frameTimeSec, this.camera);
+    this.weaponManager.update(frameTimeSec, speed);
+
+    // 8. Render Scene
     this.renderer.render(this.scene, this.camera);
   }
 }

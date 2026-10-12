@@ -1,4 +1,4 @@
-import type { ScoreState, GameSettings } from '../types';
+import type { ScoreState, GameSettings, WeaponType } from '../types';
 
 export interface HudCallbacks {
   onResume: () => void;
@@ -18,6 +18,9 @@ export class Hud {
   private comboEl!: HTMLElement;
   private peakSpeedEl!: HTMLElement;
   private highScoreEl!: HTMLElement;
+  private fragsEl!: HTMLElement;
+  private weaponNameEl!: HTMLElement;
+  private hitmarkerEl!: HTMLElement;
   private chevronLeftEl!: HTMLElement;
   private chevronRightEl!: HTMLElement;
   private speedVignetteEl!: HTMLElement;
@@ -30,8 +33,10 @@ export class Hud {
   private peakSpeed = 0;
   private highScore = 0;
   private highPeakSpeed = 0;
+  private frags = 0;
   private smoothedSync = 0;
   private groundStayTimer = 0;
+  private hitmarkerTimer: number | null = null;
 
   // Settings
   public settings: GameSettings = {
@@ -41,7 +46,8 @@ export class Hud {
     volume: 0.5,
     autoBhop: true,
     trailDuration: 4,
-    speedMultiplier: 1.0
+    speedMultiplier: 1.0,
+    botCount: 5
   };
 
   private callbacks: HudCallbacks;
@@ -91,6 +97,11 @@ export class Hud {
         } else {
           parsed.speedMultiplier = 1.0;
         }
+        if (typeof parsed.botCount === 'number' && !isNaN(parsed.botCount)) {
+          parsed.botCount = Math.max(0, Math.min(25, Math.floor(parsed.botCount)));
+        } else {
+          parsed.botCount = 5;
+        }
         this.settings = { ...this.settings, ...parsed };
       }
     } catch {
@@ -134,6 +145,16 @@ export class Hud {
               <span class="stat-label">TOP SPEED:</span>
               <span id="hud-peakspeed" class="stat-val">${Math.floor(this.highPeakSpeed)} u/s</span>
             </div>
+            <div class="stat-row">
+              <span class="stat-label">FRAGS:</span>
+              <span id="hud-frags" class="stat-val neon-frag">0</span>
+            </div>
+          </div>
+
+          <div class="hud-card weapon-panel">
+            <div class="hud-label">WEAPON [1 / 2]</div>
+            <div id="hud-weapon-name" class="hud-value weapon-badge">[1] SHOTGUN</div>
+            <div class="ammo-val">∞ AMMO</div>
           </div>
         </div>
 
@@ -142,6 +163,12 @@ export class Hud {
           <div id="chevron-left" class="guidance-chevron left">&lt;&lt;</div>
           <div class="crosshair-reticle">
             <div class="reticle-dot"></div>
+            <div id="hitmarker" class="hitmarker hidden">
+              <div class="hit-slash tl"></div>
+              <div class="hit-slash tr"></div>
+              <div class="hit-slash bl"></div>
+              <div class="hit-slash br"></div>
+            </div>
           </div>
           <div id="chevron-right" class="guidance-chevron right">&gt;&gt;</div>
         </div>
@@ -190,7 +217,7 @@ export class Hud {
 
             <div class="modal-body">
               <div class="controls-guide">
-                <h3>MOVEMENT MECHANICS</h3>
+                <h3>MOVEMENT & COMBAT</h3>
                 <div class="guide-grid">
                   <div class="guide-item">
                     <span class="key-badge">SPACE (HOLD)</span>
@@ -203,6 +230,14 @@ export class Hud {
                   <div class="guide-item">
                     <span class="key-badge">W (MID-AIR)</span>
                     <span class="desc">CPM Air-Control (Tight 90° & 180° turns)</span>
+                  </div>
+                  <div class="guide-item">
+                    <span class="key-badge">LMB (FIRE)</span>
+                    <span class="desc">Shoot Shotgun / Rocket Launcher (Rocket Jump!)</span>
+                  </div>
+                  <div class="guide-item">
+                    <span class="key-badge">1 / 2 / WHEEL / Q</span>
+                    <span class="desc">Switch Weapon (Infinite Ammo)</span>
                   </div>
                   <div class="guide-item">
                     <span class="key-badge">R</span>
@@ -242,6 +277,12 @@ export class Hud {
                   <label for="slider-speed">Множитель скорости (Speed Multiplier)</label>
                   <input id="slider-speed" type="range" min="0.2" max="5.0" step="0.1" value="${this.settings.speedMultiplier.toFixed(1)}" />
                   <span id="val-speed" class="setting-val">${this.settings.speedMultiplier.toFixed(1)}x</span>
+                </div>
+
+                <div class="setting-row">
+                  <label for="slider-bots">Количество ботов (Bots)</label>
+                  <input id="slider-bots" type="range" min="0" max="20" step="1" value="${this.settings.botCount}" />
+                  <span id="val-bots" class="setting-val">${this.settings.botCount}</span>
                 </div>
 
                 <div class="setting-row checkbox-row">
@@ -287,6 +328,9 @@ export class Hud {
     this.pauseModalEl = this.container.querySelector('#pause-modal')!;
     this.startPromptEl = this.container.querySelector('#start-prompt')!;
     this.newRecordBannerEl = this.container.querySelector('#new-record-banner')!;
+    this.fragsEl = this.container.querySelector('#hud-frags')!;
+    this.weaponNameEl = this.container.querySelector('#hud-weapon-name')!;
+    this.hitmarkerEl = this.container.querySelector('#hitmarker')!;
   }
 
   private attachEventListeners(): void {
@@ -348,6 +392,16 @@ export class Hud {
       this.saveSettings();
     });
 
+    const botsSlider = this.container.querySelector('#slider-bots') as HTMLInputElement;
+    const botsVal = this.container.querySelector('#val-bots')!;
+    botsSlider.addEventListener('input', () => {
+      const val = parseInt(botsSlider.value, 10);
+      this.settings.botCount = val;
+      botsVal.textContent = val.toString();
+      this.callbacks.onSettingsChange(this.settings);
+      this.saveSettings();
+    });
+
     const invertCheck = this.container.querySelector('#check-invert') as HTMLInputElement;
     invertCheck.addEventListener('change', () => {
       this.settings.invertY = invertCheck.checked;
@@ -361,6 +415,44 @@ export class Hud {
       this.callbacks.onSettingsChange(this.settings);
       this.saveSettings();
     });
+  }
+
+  public setWeapon(weapon: WeaponType): void {
+    if (this.weaponNameEl) {
+      this.weaponNameEl.textContent = weapon === 'shotgun' ? '[1] SHOTGUN' : '[2] ROCKET LAUNCHER';
+      this.weaponNameEl.className = `hud-value weapon-badge ${weapon === 'shotgun' ? 'shotgun-badge' : 'rocket-badge'}`;
+    }
+  }
+
+  public triggerHitmarker(): void {
+    if (!this.hitmarkerEl) return;
+    this.hitmarkerEl.classList.remove('hidden');
+    this.hitmarkerEl.classList.remove('hit-active');
+    void this.hitmarkerEl.offsetWidth; // Force CSS reflow
+    this.hitmarkerEl.classList.add('hit-active');
+
+    if (this.hitmarkerTimer !== null) {
+      window.clearTimeout(this.hitmarkerTimer);
+    }
+    this.hitmarkerTimer = window.setTimeout(() => {
+      if (this.hitmarkerEl) {
+        this.hitmarkerEl.classList.add('hidden');
+        this.hitmarkerEl.classList.remove('hit-active');
+      }
+      this.hitmarkerTimer = null;
+    }, 110);
+  }
+
+  public addFrag(): void {
+    this.frags++;
+    if (this.fragsEl) {
+      this.fragsEl.textContent = this.frags.toString();
+    }
+    this.currentScore += 500;
+  }
+
+  public getFrags(): number {
+    return this.frags;
   }
 
   public setPaused(paused: boolean): void {
@@ -563,7 +655,8 @@ export class Hud {
       peakSpeed: this.peakSpeed,
       highScore: this.highScore,
       highPeakSpeed: this.highPeakSpeed,
-      strafeSyncPct: this.smoothedSync
+      strafeSyncPct: this.smoothedSync,
+      frags: this.frags
     };
   }
 }

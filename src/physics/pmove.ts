@@ -95,6 +95,28 @@ export class Pmove {
     }
   }
 
+  // Apply explosion blast impulse (Rocket Jumping and knockback)
+  public applyExplosionImpulse(origin: THREE.Vector3, force: number = 800, radius: number = 280): void {
+    const playerCenter = this.state.position.clone();
+    playerCenter.y += Pmove.PLAYER_HEIGHT * 0.4;
+    const diff = playerCenter.clone().sub(origin);
+    const dist = diff.length();
+    if (dist >= radius) return;
+
+    const factor = Math.max(0.2, 1.0 - (dist / radius));
+    // Upward bias for high-flying Quake rocket jumps
+    diff.y += 24;
+    if (diff.lengthSq() < 0.001) {
+      diff.set(0, 1, 0);
+    } else {
+      diff.normalize();
+    }
+
+    const impulseMag = force * factor * this.speedMultiplier;
+    this.state.velocity.addScaledVector(diff, impulseMag);
+    this.state.isGrounded = false;
+  }
+
   // Core Fixed-Tick Physics Loop (pmove step)
   public tick(input: UserInput, dt: number = Pmove.FIXED_DT): void {
     // 1. Calculate Wish Direction in World Space from View Yaw & Keys

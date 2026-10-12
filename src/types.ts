@@ -56,6 +56,8 @@ export interface TriggerZone {
   name?: string;
 }
 
+export type WeaponType = 'shotgun' | 'rocket';
+
 export interface GameSettings {
   mouseSensitivity: number;
   invertY: boolean;
@@ -64,6 +66,7 @@ export interface GameSettings {
   autoBhop: boolean;
   trailDuration: number;
   speedMultiplier: number;
+  botCount: number;
 }
 
 export interface ScoreState {
@@ -73,4 +76,5 @@ export interface ScoreState {
   highScore: number;
   highPeakSpeed: number;
   strafeSyncPct: number;
+  frags: number;
 }
