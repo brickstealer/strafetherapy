@@ -9,8 +9,8 @@ interface TrailPoint {
 
 export class TrailRenderer {
   private scene: THREE.Scene;
-  private maxPoints = 500;
-  private lifetime = 3.6; // Seconds before segment decays
+  private maxPoints = 25000; // Large buffer to allow continuous infinite trails across whole map
+  private lifetime = 4.0;   // Seconds before segment decays, or Infinity
   private points: TrailPoint[] = [];
   private mesh: THREE.Mesh;
   private geometry: THREE.BufferGeometry;
@@ -46,7 +46,7 @@ export class TrailRenderer {
 
     // Dynamic index buffer for triangle strip
     const maxIndices = (this.maxPoints - 1) * 6;
-    const indices = new Uint16Array(maxIndices);
+    const indices = new Uint32Array(maxIndices);
     let idx = 0;
     for (let i = 0; i < this.maxPoints - 1; i++) {
       const v0 = i * 2;
@@ -120,6 +120,15 @@ export class TrailRenderer {
     return c;
   }
 
+  // Set trail lifetime in seconds, or Infinity
+  public setLifetime(duration: number): void {
+    this.lifetime = duration <= 0 || duration >= 61 || !Number.isFinite(duration) ? Infinity : duration;
+  }
+
+  public getLifetime(): number {
+    return this.lifetime;
+  }
+
   public update(playerPosition: THREE.Vector3, speed: number, currentTime: number, cameraPosition: THREE.Vector3): void {
     // Offset ribbon slightly below eye height (around torso level: y - 24)
     const trailPos = playerPosition.clone().add(new THREE.Vector3(0, 24, 0));
@@ -148,9 +157,11 @@ export class TrailRenderer {
       this.points[0].time = currentTime;
     }
 
-    // Prune expired points
-    while (this.points.length > 1 && currentTime - this.points[this.points.length - 1].time > this.lifetime) {
-      this.points.pop();
+    // Prune expired points only if finite duration
+    if (Number.isFinite(this.lifetime)) {
+      while (this.points.length > 1 && currentTime - this.points[this.points.length - 1].time > this.lifetime) {
+        this.points.pop();
+      }
     }
 
     if (this.points.length < 2) {
@@ -168,11 +179,11 @@ export class TrailRenderer {
     const forward = new THREE.Vector3();
     const toCam = new THREE.Vector3();
     const side = new THREE.Vector3();
+    const isInfinite = !Number.isFinite(this.lifetime);
 
     for (let i = 0; i < count; i++) {
       const pt = this.points[i];
-      const age = currentTime - pt.time;
-      const lifeRatio = Math.max(0, 1.0 - age / this.lifetime);
+      const lifeRatio = isInfinite ? 1.0 : Math.max(0, 1.0 - (currentTime - pt.time) / this.lifetime);
 
       // Dynamic alpha based on age & speed (higher speed glows brighter)
       const speedGlow = Math.min(1.0, Math.max(0.3, pt.speed / 700));
@@ -188,8 +199,8 @@ export class TrailRenderer {
       toCam.subVectors(cameraPosition, pt.position).normalize();
       side.crossVectors(forward, toCam).normalize();
 
-      // Ribbon width tapers gently at tail
-      const width = baseWidth * (0.4 + lifeRatio * 0.6);
+      // Ribbon width: full thickness when infinite, tapered when decaying
+      const width = isInfinite ? baseWidth : baseWidth * (0.4 + lifeRatio * 0.6);
 
       // Left vertex
       const leftX = pt.position.x - side.x * (width * 0.5);

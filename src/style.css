@@ -583,8 +583,9 @@ html, body {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.85rem;
   color: var(--color-cyan);
-  min-width: 48px;
+  min-width: 80px;
   text-align: right;
+  white-space: nowrap;
 }
 
 .checkbox-row {

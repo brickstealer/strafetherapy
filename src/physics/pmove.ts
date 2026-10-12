@@ -1,10 +1,18 @@
 import * as THREE from 'three';
 import type { UserInput, PlayerState, BoxCollider, RampCollider, TriggerZone } from '../types';
 
+export interface CastleMapBounds {
+  centerRadius: number;
+  corridorHalfWidth: number;
+  ringInnerRadius: number;
+  ringOuterRadius: number;
+}
+
 export interface CollisionWorld {
   boxes: BoxCollider[];
   ramps: RampCollider[];
   triggers: TriggerZone[];
+  castleBounds?: CastleMapBounds;
 }
 
 export interface PmoveCallbacks {
@@ -45,6 +53,9 @@ export class Pmove {
   private milestoneThresholds = [500, 750, 1000, 1250, 1500];
   private passedMilestones = new Set<number>();
 
+  // Speed multiplier
+  private speedMultiplier = 1.0;
+
   // Temporary vectors
   private tempVec1 = new THREE.Vector3();
 
@@ -64,6 +75,14 @@ export class Pmove {
       lastGroundTime: 0,
       airTime: 0
     };
+  }
+
+  public setSpeedMultiplier(multiplier: number): void {
+    this.speedMultiplier = Math.max(0.1, multiplier);
+  }
+
+  public getSpeedMultiplier(): number {
+    return this.speedMultiplier;
   }
 
   // Set spawn/teleport position
@@ -164,7 +183,8 @@ export class Pmove {
     // Ground Friction
     const speed = Math.hypot(this.state.velocity.x, this.state.velocity.z);
     if (speed > 0.0001) {
-      const control = speed < Pmove.STOP_SPEED ? Pmove.STOP_SPEED : speed;
+      const stopSpeed = Pmove.STOP_SPEED * this.speedMultiplier;
+      const control = speed < stopSpeed ? stopSpeed : speed;
       const drop = control * Pmove.GROUND_FRICTION * dt;
       const newSpeed = Math.max(0, speed - drop);
       if (newSpeed !== speed) {
@@ -176,7 +196,7 @@ export class Pmove {
 
     // Ground Acceleration
     if (hasWish) {
-      const wishSpeed = Pmove.MAX_WALK_SPEED;
+      const wishSpeed = Pmove.MAX_WALK_SPEED * this.speedMultiplier;
       const currentSpeed = this.state.velocity.x * wishDir.x + this.state.velocity.z * wishDir.z;
       const addSpeed = wishSpeed - currentSpeed;
 
@@ -203,16 +223,16 @@ export class Pmove {
     const horizSpeed = Math.hypot(this.state.velocity.x, this.state.velocity.z);
 
     // 2. CPMA Air-Control (Anarki / CPM Magic): Rotates velocity vector towards wishDir without speed loss
-    if (horizSpeed > 10.0) {
+    if (horizSpeed > 10.0 * this.speedMultiplier) {
       this.cpmAirControl(wishDir, horizSpeed, dt);
     }
 
     // 3. AirAccelerate: wishspeed capped (typically 30-32 u/s) with high sv_airaccelerate (70-100)
-    let wishSpeed = Pmove.AIR_WISH_SPEED;
+    let wishSpeed = Pmove.AIR_WISH_SPEED * this.speedMultiplier;
 
     // W-key penalty in mid-air: holding pure W doesn't gain strafe speed boost
     if (input.forward && !input.left && !input.right) {
-      wishSpeed = Math.min(wishSpeed, 30.0);
+      wishSpeed = Math.min(wishSpeed, 30.0 * this.speedMultiplier);
     }
 
     const currentSpeed = this.state.velocity.x * wishDir.x + this.state.velocity.z * wishDir.z;
@@ -234,7 +254,7 @@ export class Pmove {
     const dot = curDirX * wishDir.x + curDirZ * wishDir.z;
 
     if (dot > 0) {
-      const k = 32.0 * Pmove.CPM_AIR_CONTROL * dot * dot * dt;
+      const k = 32.0 * (Pmove.CPM_AIR_CONTROL * this.speedMultiplier) * dot * dot * dt;
       const newX = this.state.velocity.x + wishDir.x * k;
       const newZ = this.state.velocity.z + wishDir.z * k;
       const newLen = Math.hypot(newX, newZ);
@@ -446,6 +466,114 @@ export class Pmove {
         const dot = v.dot(colNormal);
         if (dot < 0) {
           v.addScaledVector(colNormal, -dot * 1.001);
+        }
+      }
+    }
+
+    if (this.world.castleBounds) {
+      this.resolveCastleBounds();
+    }
+  }
+
+  // Smooth circular and corridor collision resolution for the Castle Citadel geometry
+  private resolveCastleBounds(): void {
+    if (!this.world.castleBounds) return;
+    const { centerRadius, corridorHalfWidth, ringInnerRadius, ringOuterRadius } = this.world.castleBounds;
+    const p = this.state.position;
+    const v = this.state.velocity;
+    const r = Pmove.PLAYER_RADIUS;
+
+    const dist = Math.hypot(p.x, p.z);
+    if (dist < 0.001) return;
+
+    // 1. Grand Outer Boundary Circle Wall (keep player inside circular citadel)
+    const maxOuter = ringOuterRadius - r;
+    if (dist > maxOuter) {
+      const pen = dist - maxOuter;
+      const nx = -p.x / dist;
+      const nz = -p.z / dist;
+      p.x += nx * pen;
+      p.z += nz * pen;
+      const vn = v.x * nx + v.z * nz;
+      if (vn < 0) {
+        if (-vn > 150) this.callbacks.onWallHit?.(-vn);
+        v.x -= vn * nx;
+        v.z -= vn * nz;
+      }
+    }
+
+    const inQuarterBastion = Math.abs(p.x) > corridorHalfWidth && Math.abs(p.z) > corridorHalfWidth;
+
+    // 2. Outer Ring Inner Circular Wall (keep player outside bastion, in the outer ring)
+    if (inQuarterBastion && dist > (centerRadius + ringInnerRadius) * 0.5) {
+      const minRing = ringInnerRadius + r;
+      if (dist < minRing) {
+        const pen = minRing - dist;
+        const nx = p.x / dist;
+        const nz = p.z / dist;
+        p.x += nx * pen;
+        p.z += nz * pen;
+        const vn = v.x * nx + v.z * nz;
+        if (vn < 0) {
+          if (-vn > 150) this.callbacks.onWallHit?.(-vn);
+          v.x -= vn * nx;
+          v.z -= vn * nz;
+        }
+      }
+    }
+
+    // 3. Central Rotunda Circular Wall (keep player inside central rotunda)
+    if (inQuarterBastion && dist < (centerRadius + ringInnerRadius) * 0.5) {
+      const maxCenter = centerRadius - r;
+      if (dist > maxCenter) {
+        const pen = dist - maxCenter;
+        const nx = -p.x / dist;
+        const nz = -p.z / dist;
+        p.x += nx * pen;
+        p.z += nz * pen;
+        const vn = v.x * nx + v.z * nz;
+        if (vn < 0) {
+          if (-vn > 150) this.callbacks.onWallHit?.(-vn);
+          v.x -= vn * nx;
+          v.z -= vn * nz;
+        }
+      }
+    }
+
+    // 4. North & South Straight Corridor Walls (along Z axis)
+    if (dist > centerRadius - 50 && dist < ringInnerRadius + 50 && Math.abs(p.z) > corridorHalfWidth) {
+      if (p.x > corridorHalfWidth - r) {
+        const pen = p.x - (corridorHalfWidth - r);
+        p.x -= pen;
+        if (v.x > 0) {
+          if (v.x > 150) this.callbacks.onWallHit?.(v.x);
+          v.x = 0;
+        }
+      } else if (p.x < -corridorHalfWidth + r) {
+        const pen = (-corridorHalfWidth + r) - p.x;
+        p.x += pen;
+        if (v.x < 0) {
+          if (-v.x > 150) this.callbacks.onWallHit?.(-v.x);
+          v.x = 0;
+        }
+      }
+    }
+
+    // 5. East & West Straight Corridor Walls (along X axis)
+    if (dist > centerRadius - 50 && dist < ringInnerRadius + 50 && Math.abs(p.x) > corridorHalfWidth) {
+      if (p.z > corridorHalfWidth - r) {
+        const pen = p.z - (corridorHalfWidth - r);
+        p.z -= pen;
+        if (v.z > 0) {
+          if (v.z > 150) this.callbacks.onWallHit?.(v.z);
+          v.z = 0;
+        }
+      } else if (p.z < -corridorHalfWidth + r) {
+        const pen = (-corridorHalfWidth + r) - p.z;
+        p.z += pen;
+        if (v.z < 0) {
+          if (-v.z > 150) this.callbacks.onWallHit?.(-v.z);
+          v.z = 0;
         }
       }
     }

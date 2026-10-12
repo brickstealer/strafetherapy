@@ -62,6 +62,8 @@ export interface GameSettings {
   fovBase: number;
   volume: number;
   autoBhop: boolean;
+  trailDuration: number;
+  speedMultiplier: number;
 }
 
 export interface ScoreState {

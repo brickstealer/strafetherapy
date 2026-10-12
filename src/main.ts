@@ -17,6 +17,7 @@ class Game {
   private pmove!: Pmove;
   private trail!: TrailRenderer;
   private hud!: Hud;
+  private dirLight!: THREE.DirectionalLight;
 
   // Input State
   private input: UserInput = {
@@ -52,11 +53,11 @@ class Game {
     // 1. Scene & Atmosphere
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x07090e);
-    this.scene.fog = new THREE.FogExp2(0x07090e, 0.001);
+    this.scene.fog = new THREE.FogExp2(0x07090e, 0.0004);
 
-    // 2. Camera
+    // 2. Camera (far plane 10000 for 6500u castle citadel)
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.PerspectiveCamera(90, aspect, 1, 4000);
+    this.camera = new THREE.PerspectiveCamera(90, aspect, 1, 10000);
     this.camera.rotation.order = 'YXZ';
 
     // 3. WebGL Renderer
@@ -70,32 +71,33 @@ class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
-    // 4. Lighting (Dramatic retro-cyber arena illumination)
-    const ambientLight = new THREE.AmbientLight(0x1e293b, 1.2);
+    // 4. Lighting (Illumination across the 6,500u Citadel)
+    const ambientLight = new THREE.AmbientLight(0x2a3345, 1.4);
     this.scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
-    dirLight.position.set(200, 500, 300);
-    dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
-    dirLight.shadow.camera.near = 50;
-    dirLight.shadow.camera.far = 1800;
-    const d = 600;
-    dirLight.shadow.camera.left = -d;
-    dirLight.shadow.camera.right = d;
-    dirLight.shadow.camera.top = d;
-    dirLight.shadow.camera.bottom = -d;
-    this.scene.add(dirLight);
+    this.dirLight = new THREE.DirectionalLight(0xfff4e0, 1.8);
+    this.dirLight.position.set(500, 1200, 600);
+    this.dirLight.castShadow = true;
+    this.dirLight.shadow.mapSize.width = 2048;
+    this.dirLight.shadow.mapSize.height = 2048;
+    this.dirLight.shadow.camera.near = 100;
+    this.dirLight.shadow.camera.far = 2800;
+    const d = 1100;
+    this.dirLight.shadow.camera.left = -d;
+    this.dirLight.shadow.camera.right = d;
+    this.dirLight.shadow.camera.top = d;
+    this.dirLight.shadow.camera.bottom = -d;
+    this.scene.add(this.dirLight);
+    this.scene.add(this.dirLight.target);
 
-    // Cyan secondary fill light for cyber contrast
-    const cyanLight = new THREE.DirectionalLight(0x00d4ff, 1.0);
-    cyanLight.position.set(-300, 250, -200);
+    // Cyan secondary fill light for cyber/gothic contrast
+    const cyanLight = new THREE.DirectionalLight(0x00d4ff, 0.9);
+    cyanLight.position.set(-1500, 1200, -1500);
     this.scene.add(cyanLight);
 
-    // Orange accent rim light
-    const orangeLight = new THREE.DirectionalLight(0xf97316, 0.8);
-    orangeLight.position.set(300, 150, 400);
+    // Warm orange accent rim light
+    const orangeLight = new THREE.DirectionalLight(0xf97316, 0.85);
+    orangeLight.position.set(1500, 1200, 1500);
     this.scene.add(orangeLight);
 
     window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -150,6 +152,8 @@ class Game {
         soundManager.setVolume(settings.volume);
         this.camera.fov = settings.fovBase;
         this.camera.updateProjectionMatrix();
+        this.trail.setLifetime(settings.trailDuration);
+        this.pmove.setSpeedMultiplier(settings.speedMultiplier);
       },
       onToggleSound: () => {
         soundManager.toggleMute();
@@ -157,6 +161,8 @@ class Game {
     });
 
     soundManager.setVolume(this.hud.settings.volume);
+    this.trail.setLifetime(this.hud.settings.trailDuration);
+    this.pmove.setSpeedMultiplier(this.hud.settings.speedMultiplier);
   }
 
   private attachInputHandlers(): void {
@@ -318,6 +324,10 @@ class Game {
     this.currentRoll = Math.max(-0.045, Math.min(0.045, this.currentRoll));
 
     this.camera.rotation.set(state.pitch, state.yaw, this.currentRoll, 'YXZ');
+
+    // Follow directional light with player for crisp local dynamic shadows anywhere on the Citadel
+    this.dirLight.target.position.copy(state.position);
+    this.dirLight.position.set(state.position.x + 500, state.position.y + 1200, state.position.z + 600);
 
     // 3. Update Visual Trail Ribbon
     this.trail.update(state.position, speed, now / 1000, this.camera.position);

@@ -39,7 +39,9 @@ export class Hud {
     invertY: false,
     fovBase: 90,
     volume: 0.5,
-    autoBhop: true
+    autoBhop: true,
+    trailDuration: 4,
+    speedMultiplier: 1.0
   };
 
   private callbacks: HudCallbacks;
@@ -80,7 +82,16 @@ export class Hud {
     try {
       const saved = localStorage.getItem('strafe_therapy_settings');
       if (saved) {
-        this.settings = { ...this.settings, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        if (parsed.trailDuration === 'Infinity' || parsed.trailDuration === null || parsed.trailDuration >= 61) {
+          parsed.trailDuration = Infinity;
+        }
+        if (typeof parsed.speedMultiplier === 'number' && !isNaN(parsed.speedMultiplier)) {
+          parsed.speedMultiplier = Math.max(0.1, Math.min(10.0, parsed.speedMultiplier));
+        } else {
+          parsed.speedMultiplier = 1.0;
+        }
+        this.settings = { ...this.settings, ...parsed };
       }
     } catch {
       // Ignore
@@ -89,7 +100,11 @@ export class Hud {
 
   public saveSettings(): void {
     try {
-      localStorage.setItem('strafe_therapy_settings', JSON.stringify(this.settings));
+      const toSave = {
+        ...this.settings,
+        trailDuration: Number.isFinite(this.settings.trailDuration) ? this.settings.trailDuration : 'Infinity'
+      };
+      localStorage.setItem('strafe_therapy_settings', JSON.stringify(toSave));
     } catch {
       // Ignore
     }
@@ -217,6 +232,18 @@ export class Hud {
                   <span id="val-vol" class="setting-val">${Math.round(this.settings.volume * 100)}%</span>
                 </div>
 
+                <div class="setting-row">
+                  <label for="slider-trail">Время трейла (Trail Lifetime)</label>
+                  <input id="slider-trail" type="range" min="1" max="61" step="1" value="${Number.isFinite(this.settings.trailDuration) ? Math.min(60, this.settings.trailDuration) : 61}" />
+                  <span id="val-trail" class="setting-val">${Number.isFinite(this.settings.trailDuration) ? `${this.settings.trailDuration} с` : '∞ Бесконечно'}</span>
+                </div>
+
+                <div class="setting-row">
+                  <label for="slider-speed">Множитель скорости (Speed Multiplier)</label>
+                  <input id="slider-speed" type="range" min="0.2" max="5.0" step="0.1" value="${this.settings.speedMultiplier.toFixed(1)}" />
+                  <span id="val-speed" class="setting-val">${this.settings.speedMultiplier.toFixed(1)}x</span>
+                </div>
+
                 <div class="setting-row checkbox-row">
                   <label>
                     <input id="check-invert" type="checkbox" ${this.settings.invertY ? 'checked' : ''} />
@@ -292,6 +319,31 @@ export class Hud {
     volSlider.addEventListener('input', () => {
       this.settings.volume = parseFloat(volSlider.value);
       volVal.textContent = `${Math.round(this.settings.volume * 100)}%`;
+      this.callbacks.onSettingsChange(this.settings);
+      this.saveSettings();
+    });
+
+    const trailSlider = this.container.querySelector('#slider-trail') as HTMLInputElement;
+    const trailVal = this.container.querySelector('#val-trail')!;
+    trailSlider.addEventListener('input', () => {
+      const val = parseInt(trailSlider.value, 10);
+      if (val >= 61) {
+        this.settings.trailDuration = Infinity;
+        trailVal.textContent = '∞ Бесконечно';
+      } else {
+        this.settings.trailDuration = val;
+        trailVal.textContent = `${val} с`;
+      }
+      this.callbacks.onSettingsChange(this.settings);
+      this.saveSettings();
+    });
+
+    const speedSlider = this.container.querySelector('#slider-speed') as HTMLInputElement;
+    const speedVal = this.container.querySelector('#val-speed')!;
+    speedSlider.addEventListener('input', () => {
+      const val = parseFloat(speedSlider.value);
+      this.settings.speedMultiplier = Math.round(val * 10) / 10;
+      speedVal.textContent = `${this.settings.speedMultiplier.toFixed(1)}x`;
       this.callbacks.onSettingsChange(this.settings);
       this.saveSettings();
     });

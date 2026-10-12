@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { CollisionWorld } from '../physics/pmove';
+import { generateCastleFloorTextures, createCastleRosetteGroup } from './castleFloor';
 
 export interface Torch {
   light?: THREE.PointLight;
@@ -26,10 +27,16 @@ export class WorldMap {
     this.collisionWorld = {
       boxes: [],
       ramps: [],
-      triggers: []
+      triggers: [],
+      castleBounds: {
+        centerRadius: 600,
+        corridorHalfWidth: 200,
+        ringInnerRadius: 2800,
+        ringOuterRadius: 3250
+      }
     };
     this.spawnPoint = new THREE.Vector3(0, 0, 0);
-    this.spawnYaw = 0; // Looking towards -Z
+    this.spawnYaw = 0; // Looking towards -Z (North Corridor)
 
     this.initTexturesAndMaterials();
     this.buildLevelGeometry();
@@ -37,33 +44,11 @@ export class WorldMap {
 
   // Create retro cyber Defrag & Gothic Castle textures
   private initTexturesAndMaterials(): void {
-    // 1. Dark Grid Floor (Defrag standard)
-    const floorCanvas = document.createElement('canvas');
-    floorCanvas.width = 512;
-    floorCanvas.height = 512;
-    const ctxF = floorCanvas.getContext('2d')!;
-
-    ctxF.fillStyle = '#0a0d14';
-    ctxF.fillRect(0, 0, 512, 512);
-
-    ctxF.strokeStyle = 'rgba(30, 41, 59, 0.6)';
-    ctxF.lineWidth = 2;
-    for (let i = 0; i <= 512; i += 64) {
-      ctxF.beginPath(); ctxF.moveTo(i, 0); ctxF.lineTo(i, 512); ctxF.stroke();
-      ctxF.beginPath(); ctxF.moveTo(0, i); ctxF.lineTo(512, i); ctxF.stroke();
-    }
-
-    ctxF.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-    ctxF.lineWidth = 4;
-    for (let i = 0; i <= 512; i += 256) {
-      ctxF.beginPath(); ctxF.moveTo(i, 0); ctxF.lineTo(i, 512); ctxF.stroke();
-      ctxF.beginPath(); ctxF.moveTo(0, i); ctxF.lineTo(512, i); ctxF.stroke();
-    }
-
-    const floorTex = new THREE.CanvasTexture(floorCanvas);
-    floorTex.wrapS = THREE.RepeatWrapping;
-    floorTex.wrapT = THREE.RepeatWrapping;
-    this.textures['floor'] = floorTex;
+    // 1. Medieval Castle Stone Flagstone Textures (Diffuse, Normal, Roughness)
+    const castleFloor = generateCastleFloorTextures();
+    this.textures['floor'] = castleFloor.diffuse;
+    this.textures['floorNormal'] = castleFloor.normal;
+    this.textures['floorRoughness'] = castleFloor.roughness;
 
     // 2. Gothic Stone Brick Wall Texture (For Corridors)
     const stoneCanvas = document.createElement('canvas');
@@ -170,9 +155,12 @@ export class WorldMap {
 
     // Materials
     this.materials['floor'] = new THREE.MeshStandardMaterial({
-      map: floorTex,
-      roughness: 0.7,
-      metalness: 0.2
+      map: this.textures['floor'],
+      normalMap: this.textures['floorNormal'],
+      normalScale: new THREE.Vector2(1.8, 1.8),
+      roughnessMap: this.textures['floorRoughness'],
+      roughness: 0.65,
+      metalness: 0.12
     });
 
     this.materials['stoneWall'] = new THREE.MeshStandardMaterial({
@@ -232,9 +220,12 @@ export class WorldMap {
     });
 
     this.materials['ramp'] = new THREE.MeshStandardMaterial({
-      map: floorTex,
-      roughness: 0.5,
-      metalness: 0.2
+      map: this.textures['floor'],
+      normalMap: this.textures['floorNormal'],
+      normalScale: new THREE.Vector2(1.5, 1.5),
+      roughnessMap: this.textures['floorRoughness'],
+      roughness: 0.6,
+      metalness: 0.12
     });
   }
 
@@ -366,108 +357,246 @@ export class WorldMap {
     });
   }
 
-  // Construct level geometry: One Giant Flat Arena with Floor, High Ceiling, Perimeter Walls, Torches & Paintings
+  // Construct symmetric Castle Citadel compressed by 2x: Central Rotunda, 4 Corridors, Outer Ring
   private buildLevelGeometry(): void {
-    const halfSize = 1400; // 2800 x 2800 units wide open flat arena
-    const wallH = 320;     // High 320u ceiling
-    const thick = 30;
+    const centerRadius = 600;       // Circular central hall (1,200u diameter)
+    const corridorHalfW = 200;      // 400-unit wide corridors
+    const ringInnerRadius = 2800;   // Inner boundary of outer circular track (450u wide track)
+    const ringOuterRadius = 3250;   // Outer boundary of castle (6,500u diameter)
+    const wallH = 320;              // Castle wall height
+    const floorSize = 3500;         // Complete floor coverage
+    const thick = 20;               // Wall thickness
 
-    // 1. COMPLETELY FLAT FLOOR at y = 0
+    // 1. MONUMENTAL CASTLE STONE FLOOR at y = 0
     this.addBox(
-      new THREE.Vector3(-halfSize, -20, -halfSize),
-      new THREE.Vector3(halfSize, 0, halfSize),
+      new THREE.Vector3(-floorSize, -20, -floorSize),
+      new THREE.Vector3(floorSize, 0, floorSize),
       'floor',
-      { repeatX: 28, repeatY: 28 }
+      { repeatX: 70, repeatY: 70 }
     );
 
-    // 2. FLAT CEILING at y = wallH
+    // 1b. Castle Crest Rosette inlaid in center of the rotunda spawn
+    const rosetteGroup = createCastleRosetteGroup(200);
+    this.scene.add(rosetteGroup);
+
+    // 2. CASTLE STONE CEILING at y = wallH
     this.addBox(
-      new THREE.Vector3(-halfSize, wallH, -halfSize),
-      new THREE.Vector3(halfSize, wallH + 20, halfSize),
+      new THREE.Vector3(-floorSize, wallH, -floorSize),
+      new THREE.Vector3(floorSize, wallH + 20, floorSize),
       'stoneWall',
-      { repeatX: 28, repeatY: 28 }
+      { repeatX: 70, repeatY: 70 }
     );
 
-    // 3. FOUR SOLID PERIMETER WALLS
-    // North Wall (Z = -halfSize)
-    this.addBox(
-      new THREE.Vector3(-halfSize - thick, 0, -halfSize - thick),
-      new THREE.Vector3(halfSize + thick, wallH, -halfSize),
-      'stoneWall',
-      { repeatX: 28, repeatY: 4 }
-    );
+    // 3. GRAND OUTER CIRCULAR WALL (R = 3250)
+    this.addCylinderWall(ringOuterRadius, wallH, 0, Math.PI * 2, 'stoneWall', THREE.BackSide, 80);
 
-    // South Wall (Z = +halfSize)
-    this.addBox(
-      new THREE.Vector3(-halfSize - thick, 0, halfSize),
-      new THREE.Vector3(halfSize + thick, wallH, halfSize + thick),
-      'stoneWall',
-      { repeatX: 28, repeatY: 4 }
-    );
+    // 4. INNER ROTUNDA ARCS & OUTER RING INNER ARCS (Between 4 corridors)
+    const thetaWCenter = Math.asin(corridorHalfW / centerRadius); // ~0.3398 rad
+    const thetaLengthCenter = Math.PI * 0.5 - 2 * thetaWCenter;    // ~0.8911 rad
 
-    // West Wall (X = -halfSize)
-    this.addBox(
-      new THREE.Vector3(-halfSize - thick, 0, -halfSize),
-      new THREE.Vector3(-halfSize, wallH, halfSize),
-      'stoneWall',
-      { repeatX: 28, repeatY: 4 }
-    );
+    const thetaWRing = Math.asin(corridorHalfW / ringInnerRadius); // ~0.0715 rad
+    const thetaLengthRing = Math.PI * 0.5 - 2 * thetaWRing;        // ~1.4278 rad
 
-    // East Wall (X = +halfSize)
-    this.addBox(
-      new THREE.Vector3(halfSize, 0, -halfSize),
-      new THREE.Vector3(halfSize + thick, wallH, halfSize),
-      'stoneWall',
-      { repeatX: 28, repeatY: 4 }
-    );
+    for (let k = 0; k < 4; k++) {
+      // Rotunda Inner Arc
+      const startC = k * Math.PI * 0.5 + thetaWCenter;
+      this.addCylinderWall(centerRadius, wallH, startC, thetaLengthCenter, 'stoneWall', THREE.DoubleSide, 8);
 
-    // 4. TORCHES & PAINTINGS LINING ALL FOUR WALLS
-    const step = 140;
+      // Outer Ring Inner Arc
+      const startR = k * Math.PI * 0.5 + thetaWRing;
+      this.addCylinderWall(ringInnerRadius, wallH, startR, thetaLengthRing, 'stoneWall', THREE.DoubleSide, 32);
+    }
+
+    // 5. EIGHT STRAIGHT WALLS OF THE 4 CORRIDORS
+    const zStart = Math.sqrt(centerRadius * centerRadius - corridorHalfW * corridorHalfW);       // ~565.69
+    const zEnd = Math.sqrt(ringInnerRadius * ringInnerRadius - corridorHalfW * corridorHalfW);   // ~2792.85
+
+    // North Corridor (Z in [-zEnd, -zStart])
+    this.addBox(new THREE.Vector3(corridorHalfW, 0, -zEnd), new THREE.Vector3(corridorHalfW + thick, wallH, -zStart), 'stoneWall', { repeatX: 24, repeatY: 4 });
+    this.addBox(new THREE.Vector3(-corridorHalfW - thick, 0, -zEnd), new THREE.Vector3(-corridorHalfW, wallH, -zStart), 'stoneWall', { repeatX: 24, repeatY: 4 });
+
+    // South Corridor (Z in [zStart, zEnd])
+    this.addBox(new THREE.Vector3(corridorHalfW, 0, zStart), new THREE.Vector3(corridorHalfW + thick, wallH, zEnd), 'stoneWall', { repeatX: 24, repeatY: 4 });
+    this.addBox(new THREE.Vector3(-corridorHalfW - thick, 0, zStart), new THREE.Vector3(-corridorHalfW, wallH, zEnd), 'stoneWall', { repeatX: 24, repeatY: 4 });
+
+    // East Corridor (X in [zStart, zEnd])
+    this.addBox(new THREE.Vector3(zStart, 0, -corridorHalfW - thick), new THREE.Vector3(zEnd, wallH, -corridorHalfW), 'stoneWall', { repeatX: 24, repeatY: 4 });
+    this.addBox(new THREE.Vector3(zStart, 0, corridorHalfW), new THREE.Vector3(zEnd, wallH, corridorHalfW + thick), 'stoneWall', { repeatX: 24, repeatY: 4 });
+
+    // West Corridor (X in [-zEnd, -zStart])
+    this.addBox(new THREE.Vector3(-zEnd, 0, -corridorHalfW - thick), new THREE.Vector3(-zStart, wallH, -corridorHalfW), 'stoneWall', { repeatX: 24, repeatY: 4 });
+    this.addBox(new THREE.Vector3(-zEnd, 0, corridorHalfW), new THREE.Vector3(-zStart, wallH, corridorHalfW + thick), 'stoneWall', { repeatX: 24, repeatY: 4 });
+
+    // 6. DECORATE CITADEL WITH TORCHES & GOTHIC OIL PAINTINGS
+    this.populateCitadelDecorations(centerRadius, corridorHalfW, ringInnerRadius, ringOuterRadius, zStart, zEnd);
+  }
+
+  // Populate torches and oil paintings throughout rotunda, corridors and outer ring
+  private populateCitadelDecorations(
+    centerRadius: number,
+    corridorHalfW: number,
+    ringInnerRadius: number,
+    ringOuterRadius: number,
+    zStart: number,
+    zEnd: number
+  ): void {
     let paintingIdx = 0;
 
-    // North Wall (facing south, yaw = 0)
-    for (let x = -halfSize + 140; x <= halfSize - 140; x += step) {
-      const isTorch = (Math.abs(x) / step) % 2 === 0;
+    // 1. Central Rotunda Walls: 3 items on each of the 4 arcs
+    for (let k = 0; k < 4; k++) {
+      const midAngle = k * Math.PI * 0.5 + Math.PI * 0.25;
+      const angleOffsets = [-0.18, 0, 0.18];
+      angleOffsets.forEach((off, idx) => {
+        const a = midAngle + off;
+        const x = Math.sin(a) * (centerRadius - 8);
+        const z = Math.cos(a) * (centerRadius - 8);
+        const yaw = Math.atan2(-x, -z);
+
+        if (idx === 1) {
+          // Central torch on each rotunda arc with PointLight
+          this.addWallTorch(new THREE.Vector3(x, 65, z), yaw, true);
+        } else if (idx === 0) {
+          this.addWallTorch(new THREE.Vector3(x, 65, z), yaw, false);
+        } else {
+          this.addWallPainting(new THREE.Vector3(x, 65, z), yaw, paintingIdx++);
+        }
+      });
+    }
+
+    // 2. Corridors: Torches & paintings along each straight wall
+    const corridorStep = 280;
+    const corridorPositions: number[] = [];
+    for (let pos = zStart + 180; pos <= zEnd - 180; pos += corridorStep) {
+      corridorPositions.push(pos);
+    }
+
+    corridorPositions.forEach((pos, idx) => {
+      const isTorch = idx % 2 === 0;
+      const withLight = idx === 3; // 1 PointLight per corridor side
+
+      // North Corridor
       if (isTorch) {
-        const withLight = (Math.abs(x) / (step * 2)) % 2 === 0;
-        this.addWallTorch(new THREE.Vector3(x, 60, -halfSize + 4), 0, withLight);
+        this.addWallTorch(new THREE.Vector3(corridorHalfW - 6, 65, -pos), -Math.PI * 0.5, withLight);
       } else {
-        this.addWallPainting(new THREE.Vector3(x, 60, -halfSize + 4), 0, paintingIdx++);
+        this.addWallPainting(new THREE.Vector3(corridorHalfW - 6, 65, -pos), -Math.PI * 0.5, paintingIdx++);
+      }
+      if (isTorch) {
+        this.addWallTorch(new THREE.Vector3(-corridorHalfW + 6, 65, -pos), Math.PI * 0.5, false);
+      } else {
+        this.addWallPainting(new THREE.Vector3(-corridorHalfW + 6, 65, -pos), Math.PI * 0.5, paintingIdx++);
+      }
+
+      // South Corridor
+      if (isTorch) {
+        this.addWallTorch(new THREE.Vector3(corridorHalfW - 6, 65, pos), -Math.PI * 0.5, withLight);
+      } else {
+        this.addWallPainting(new THREE.Vector3(corridorHalfW - 6, 65, pos), -Math.PI * 0.5, paintingIdx++);
+      }
+      if (isTorch) {
+        this.addWallTorch(new THREE.Vector3(-corridorHalfW + 6, 65, pos), Math.PI * 0.5, false);
+      } else {
+        this.addWallPainting(new THREE.Vector3(-corridorHalfW + 6, 65, pos), Math.PI * 0.5, paintingIdx++);
+      }
+
+      // East Corridor
+      if (isTorch) {
+        this.addWallTorch(new THREE.Vector3(pos, 65, -corridorHalfW + 6), 0, withLight);
+      } else {
+        this.addWallPainting(new THREE.Vector3(pos, 65, -corridorHalfW + 6), 0, paintingIdx++);
+      }
+      if (isTorch) {
+        this.addWallTorch(new THREE.Vector3(pos, 65, corridorHalfW - 6), Math.PI, false);
+      } else {
+        this.addWallPainting(new THREE.Vector3(pos, 65, corridorHalfW - 6), Math.PI, paintingIdx++);
+      }
+
+      // West Corridor
+      if (isTorch) {
+        this.addWallTorch(new THREE.Vector3(-pos, 65, -corridorHalfW + 6), 0, withLight);
+      } else {
+        this.addWallPainting(new THREE.Vector3(-pos, 65, -corridorHalfW + 6), 0, paintingIdx++);
+      }
+      if (isTorch) {
+        this.addWallTorch(new THREE.Vector3(-pos, 65, corridorHalfW - 6), Math.PI, false);
+      } else {
+        this.addWallPainting(new THREE.Vector3(-pos, 65, corridorHalfW - 6), Math.PI, paintingIdx++);
+      }
+    });
+
+    // 3. Outer Ring: Torches and paintings along grand outer circular wall
+    const numOuterSpots = 24;
+    for (let i = 0; i < numOuterSpots; i++) {
+      const a = (i * Math.PI * 2) / numOuterSpots;
+      const x = Math.sin(a) * (ringOuterRadius - 12);
+      const z = Math.cos(a) * (ringOuterRadius - 12);
+      const yaw = Math.atan2(-x, -z);
+
+      const isTorch = i % 2 === 0;
+      const withLight = i % 4 === 0; // 8 PointLights distributed around the outer ring
+
+      if (isTorch) {
+        this.addWallTorch(new THREE.Vector3(x, 65, z), yaw, withLight);
+      } else {
+        this.addWallPainting(new THREE.Vector3(x, 65, z), yaw, paintingIdx++);
       }
     }
 
-    // South Wall (facing north, yaw = Math.PI)
-    for (let x = -halfSize + 140; x <= halfSize - 140; x += step) {
-      const isTorch = (Math.abs(x) / step) % 2 === 0;
-      if (isTorch) {
-        const withLight = (Math.abs(x) / (step * 2)) % 2 === 0;
-        this.addWallTorch(new THREE.Vector3(x, 60, halfSize - 4), Math.PI, withLight);
-      } else {
-        this.addWallPainting(new THREE.Vector3(x, 60, halfSize - 4), Math.PI, paintingIdx++);
-      }
-    }
+    // 4. Outer Ring: Torches along inner arc walls of bastions
+    for (let k = 0; k < 4; k++) {
+      const midAngle = k * Math.PI * 0.5 + Math.PI * 0.25;
+      const offsets = [-0.35, -0.12, 0.12, 0.35];
+      offsets.forEach((off, idx) => {
+        const a = midAngle + off;
+        const x = Math.sin(a) * (ringInnerRadius + 12);
+        const z = Math.cos(a) * (ringInnerRadius + 12);
+        const yaw = Math.atan2(x, z);
 
-    // West Wall (facing east, yaw = Math.PI / 2)
-    for (let z = -halfSize + 140; z <= halfSize - 140; z += step) {
-      const isTorch = (Math.abs(z) / step) % 2 === 0;
-      if (isTorch) {
-        const withLight = (Math.abs(z) / (step * 2)) % 2 === 0;
-        this.addWallTorch(new THREE.Vector3(-halfSize + 4, 60, z), Math.PI / 2, withLight);
-      } else {
-        this.addWallPainting(new THREE.Vector3(-halfSize + 4, 60, z), Math.PI / 2, paintingIdx++);
-      }
+        if (idx % 2 === 0) {
+          this.addWallTorch(new THREE.Vector3(x, 65, z), yaw, false);
+        } else {
+          this.addWallPainting(new THREE.Vector3(x, 65, z), yaw, paintingIdx++);
+        }
+      });
     }
+  }
 
-    // East Wall (facing west, yaw = -Math.PI / 2)
-    for (let z = -halfSize + 140; z <= halfSize - 140; z += step) {
-      const isTorch = (Math.abs(z) / step) % 2 === 0;
-      if (isTorch) {
-        const withLight = (Math.abs(z) / (step * 2)) % 2 === 0;
-        this.addWallTorch(new THREE.Vector3(halfSize - 4, 60, z), -Math.PI / 2, withLight);
-      } else {
-        this.addWallPainting(new THREE.Vector3(halfSize - 4, 60, z), -Math.PI / 2, paintingIdx++);
+  // Helper to add cylindrical wall arcs
+  private addCylinderWall(
+    radius: number,
+    height: number,
+    thetaStart: number,
+    thetaLength: number,
+    materialKey: string,
+    side: THREE.Side = THREE.DoubleSide,
+    uvRepeatX: number = 8
+  ): THREE.Mesh {
+    const geo = new THREE.CylinderGeometry(
+      radius,
+      radius,
+      height,
+      Math.max(16, Math.floor(thetaLength * 28)),
+      1,
+      true,
+      thetaStart,
+      thetaLength
+    );
+    let mat = this.materials[materialKey] || this.materials['stoneWall'];
+    if (mat instanceof THREE.MeshStandardMaterial) {
+      const cloned = mat.clone();
+      cloned.side = side;
+      if (cloned.map) {
+        cloned.map = cloned.map.clone();
+        cloned.map.repeat.set(uvRepeatX, 4);
+        cloned.map.needsUpdate = true;
       }
+      mat = cloned;
     }
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(0, height * 0.5, 0);
+    mesh.receiveShadow = true;
+    mesh.castShadow = true;
+    this.scene.add(mesh);
+    return mesh;
   }
 
   // Add 3D Medieval Torch with animated flame & optional flickering PointLight
@@ -590,15 +719,24 @@ export class WorldMap {
     const geo = new THREE.BoxGeometry(size.x, size.y, size.z);
 
     let mat = this.materials[materialKey] || this.materials['wall'];
-    if (uvRepeat && this.textures[materialKey]) {
-      const tex = this.textures[materialKey].clone();
-      tex.repeat.set(uvRepeat.repeatX, uvRepeat.repeatY);
-      tex.needsUpdate = true;
-      mat = new THREE.MeshStandardMaterial({
-        map: tex,
-        roughness: 0.7,
-        metalness: 0.2
-      });
+    if (uvRepeat && mat instanceof THREE.MeshStandardMaterial) {
+      const clonedMat = mat.clone();
+      if (clonedMat.map) {
+        clonedMat.map = clonedMat.map.clone();
+        clonedMat.map.repeat.set(uvRepeat.repeatX, uvRepeat.repeatY);
+        clonedMat.map.needsUpdate = true;
+      }
+      if (clonedMat.normalMap) {
+        clonedMat.normalMap = clonedMat.normalMap.clone();
+        clonedMat.normalMap.repeat.set(uvRepeat.repeatX, uvRepeat.repeatY);
+        clonedMat.normalMap.needsUpdate = true;
+      }
+      if (clonedMat.roughnessMap) {
+        clonedMat.roughnessMap = clonedMat.roughnessMap.clone();
+        clonedMat.roughnessMap.repeat.set(uvRepeat.repeatX, uvRepeat.repeatY);
+        clonedMat.roughnessMap.needsUpdate = true;
+      }
+      mat = clonedMat;
     }
 
     const mesh = new THREE.Mesh(geo, mat);
@@ -613,6 +751,8 @@ export class WorldMap {
       max: max.clone()
     });
   }
+
+
 
   // Add an angled ramp collider and visual mesh
   public addRamp(start: THREE.Vector3, end: THREE.Vector3, width: number): void {
