@@ -7,6 +7,7 @@ import { soundManager } from './audio/synth';
 import { Hud } from './ui/hud';
 import { BotManager } from './entities/botManager';
 import { WeaponManager } from './weapons/weapons';
+import { GoreSystem } from './graphics/goreSystem';
 
 class Game {
   private renderer!: THREE.WebGLRenderer;
@@ -22,6 +23,7 @@ class Game {
   private dirLight!: THREE.DirectionalLight;
   private botManager!: BotManager;
   private weaponManager!: WeaponManager;
+  private goreSystem!: GoreSystem;
 
   // Input State
   private input: UserInput = {
@@ -138,9 +140,11 @@ class Game {
       }
     };
 
-    // Bots & Weapons
-    this.botManager = new BotManager(this.scene, this.map.collisionWorld.castleBounds);
+    // Bots, Gore & Weapons
+    this.goreSystem = new GoreSystem(this.scene);
+    this.botManager = new BotManager(this.scene, this.map.collisionWorld.castleBounds, this.goreSystem);
     this.botManager.setBotCount(this.hud.settings.botCount);
+    this.botManager.setGoreSettings(this.hud.settings.goreLevel, this.hud.settings.bloodDuration);
 
     this.weaponManager = new WeaponManager(
       this.scene,
@@ -180,7 +184,10 @@ class Game {
         this.camera.updateProjectionMatrix();
         this.trail.setLifetime(settings.trailDuration);
         if (this.pmove) this.pmove.setSpeedMultiplier(settings.speedMultiplier);
-        if (this.botManager) this.botManager.setBotCount(settings.botCount);
+        if (this.botManager) {
+          this.botManager.setBotCount(settings.botCount);
+          this.botManager.setGoreSettings(settings.goreLevel, settings.bloodDuration);
+        }
       },
       onToggleSound: () => {
         soundManager.toggleMute();
@@ -413,9 +420,10 @@ class Game {
     // 6. Update Animated Torches & Lights
     this.map.update(now / 1000);
 
-    // 7. Update Bots & Weapons
+    // 7. Update Bots, Weapons & Gore System
     this.botManager.update(frameTimeSec, this.camera);
     this.weaponManager.update(frameTimeSec, speed);
+    this.goreSystem.update(frameTimeSec, this.hud.settings.bloodDuration);
 
     // 8. Render Scene
     this.renderer.render(this.scene, this.camera);

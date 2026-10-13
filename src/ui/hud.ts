@@ -7,6 +7,17 @@ export interface HudCallbacks {
   onToggleSound: () => void;
 }
 
+const GORE_LEVEL_LABELS = [
+  '0: ВЫКЛ (Без крови)',
+  '1: УМЕРЕННО (Капли)',
+  '2: СТАНДАРТ (Брызги & Лужи)',
+  '3: МЯСО (Органы, кости & расчленение)',
+  '4: ЛЮТЫЙ АД (Фонтаны крови & разрыв!)'
+];
+
+const BLOOD_DURATION_STEPS = [5, 15, 30, 60, 120, 300, Infinity];
+const BLOOD_DURATION_LABELS = ['5 с', '15 с', '30 с', '1 мин', '2 мин', '5 мин', '∞ Бесконечно'];
+
 export class Hud {
   private container: HTMLElement;
   private speedDigitsEl!: HTMLElement;
@@ -47,7 +58,9 @@ export class Hud {
     autoBhop: true,
     trailDuration: 4,
     speedMultiplier: 1.0,
-    botCount: 5
+    botCount: 5,
+    goreLevel: 3,
+    bloodDuration: Infinity
   };
 
   private callbacks: HudCallbacks;
@@ -62,6 +75,22 @@ export class Hud {
     this.loadSettings();
     this.buildDom();
     this.attachEventListeners();
+  }
+
+  private getGoreLevelText(level: number): string {
+    const idx = Math.max(0, Math.min(4, Math.floor(level)));
+    return GORE_LEVEL_LABELS[idx];
+  }
+
+  private getBloodDurationStepIndex(duration: number): number {
+    if (!Number.isFinite(duration) || duration >= 301) return 6;
+    const idx = BLOOD_DURATION_STEPS.findIndex((s) => s >= duration);
+    return idx === -1 ? 6 : idx;
+  }
+
+  private getBloodDurationText(duration: number): string {
+    const idx = this.getBloodDurationStepIndex(duration);
+    return BLOOD_DURATION_LABELS[idx];
   }
 
   private loadHighScores(): void {
@@ -92,6 +121,18 @@ export class Hud {
         if (parsed.trailDuration === 'Infinity' || parsed.trailDuration === null || parsed.trailDuration >= 61) {
           parsed.trailDuration = Infinity;
         }
+        if (parsed.bloodDuration === 'Infinity' || parsed.bloodDuration === null || parsed.bloodDuration === 'infinity' || parsed.bloodDuration >= 301) {
+          parsed.bloodDuration = Infinity;
+        } else if (typeof parsed.bloodDuration === 'number' && !isNaN(parsed.bloodDuration)) {
+          parsed.bloodDuration = Math.max(0, parsed.bloodDuration);
+        } else {
+          parsed.bloodDuration = Infinity;
+        }
+        if (typeof parsed.goreLevel === 'number' && !isNaN(parsed.goreLevel)) {
+          parsed.goreLevel = Math.max(0, Math.min(4, Math.floor(parsed.goreLevel)));
+        } else {
+          parsed.goreLevel = 3;
+        }
         if (typeof parsed.speedMultiplier === 'number' && !isNaN(parsed.speedMultiplier)) {
           parsed.speedMultiplier = Math.max(0.1, Math.min(10.0, parsed.speedMultiplier));
         } else {
@@ -113,7 +154,8 @@ export class Hud {
     try {
       const toSave = {
         ...this.settings,
-        trailDuration: Number.isFinite(this.settings.trailDuration) ? this.settings.trailDuration : 'Infinity'
+        trailDuration: Number.isFinite(this.settings.trailDuration) ? this.settings.trailDuration : 'Infinity',
+        bloodDuration: Number.isFinite(this.settings.bloodDuration) ? this.settings.bloodDuration : 'Infinity'
       };
       localStorage.setItem('strafe_therapy_settings', JSON.stringify(toSave));
     } catch {
@@ -285,6 +327,18 @@ export class Hud {
                   <span id="val-bots" class="setting-val">${this.settings.botCount}</span>
                 </div>
 
+                <div class="setting-row">
+                  <label for="slider-gore">Уровень расчленёнки & кровищи (Gore Level)</label>
+                  <input id="slider-gore" type="range" min="0" max="4" step="1" value="${this.settings.goreLevel}" />
+                  <span id="val-gore" class="setting-val gore-badge">${this.getGoreLevelText(this.settings.goreLevel)}</span>
+                </div>
+
+                <div class="setting-row">
+                  <label for="slider-blood">Следы крови на полу и стенах (Blood Decals)</label>
+                  <input id="slider-blood" type="range" min="0" max="6" step="1" value="${this.getBloodDurationStepIndex(this.settings.bloodDuration)}" />
+                  <span id="val-blood" class="setting-val gore-badge">${this.getBloodDurationText(this.settings.bloodDuration)}</span>
+                </div>
+
                 <div class="setting-row checkbox-row">
                   <label>
                     <input id="check-invert" type="checkbox" ${this.settings.invertY ? 'checked' : ''} />
@@ -398,6 +452,27 @@ export class Hud {
       const val = parseInt(botsSlider.value, 10);
       this.settings.botCount = val;
       botsVal.textContent = val.toString();
+      this.callbacks.onSettingsChange(this.settings);
+      this.saveSettings();
+    });
+
+    const goreSlider = this.container.querySelector('#slider-gore') as HTMLInputElement;
+    const goreVal = this.container.querySelector('#val-gore')!;
+    goreSlider.addEventListener('input', () => {
+      const val = parseInt(goreSlider.value, 10);
+      this.settings.goreLevel = val;
+      goreVal.textContent = this.getGoreLevelText(val);
+      this.callbacks.onSettingsChange(this.settings);
+      this.saveSettings();
+    });
+
+    const bloodSlider = this.container.querySelector('#slider-blood') as HTMLInputElement;
+    const bloodVal = this.container.querySelector('#val-blood')!;
+    bloodSlider.addEventListener('input', () => {
+      const stepIdx = parseInt(bloodSlider.value, 10);
+      const val = BLOOD_DURATION_STEPS[stepIdx];
+      this.settings.bloodDuration = val;
+      bloodVal.textContent = BLOOD_DURATION_LABELS[stepIdx];
       this.callbacks.onSettingsChange(this.settings);
       this.saveSettings();
     });

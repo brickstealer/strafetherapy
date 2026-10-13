@@ -622,6 +622,17 @@ html, body {
   white-space: nowrap;
 }
 
+.gore-badge {
+  color: #ff3355;
+  text-shadow: 0 0 8px rgba(255, 51, 85, 0.6);
+  font-weight: 700;
+  min-width: 120px;
+}
+
+#slider-gore, #slider-blood {
+  accent-color: #ff2244;
+}
+
 .checkbox-row {
   margin-top: 0.25rem;
   gap: 1.5rem;

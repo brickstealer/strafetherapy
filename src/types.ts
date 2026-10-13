@@ -67,6 +67,8 @@ export interface GameSettings {
   trailDuration: number;
   speedMultiplier: number;
   botCount: number;
+  goreLevel: number;
+  bloodDuration: number;
 }
 
 export interface ScoreState {

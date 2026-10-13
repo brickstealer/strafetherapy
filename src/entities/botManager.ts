@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { soundManager } from '../audio/synth';
 import type { CastleMapBounds } from '../physics/pmove';
+import type { GoreSystem } from '../graphics/goreSystem';
 
 export interface BotDamageResult {
   hit: boolean;
@@ -48,11 +49,13 @@ export class Bot {
   private hpBarFill!: THREE.Mesh;
   private hpBarGroup!: THREE.Group;
   private eyeLight?: THREE.PointLight;
+  public goreSystem?: GoreSystem;
 
-  constructor(scene: THREE.Scene, initialPos: THREE.Vector3, template: SkeletonTemplate) {
+  constructor(scene: THREE.Scene, initialPos: THREE.Vector3, template: SkeletonTemplate, goreSystem?: GoreSystem) {
     this.position = initialPos.clone();
     this.velocity = new THREE.Vector3();
     this.mesh = new THREE.Group();
+    this.goreSystem = goreSystem;
 
     // 1. Clone realistic skeletal character model (enlarged giant skeleton)
     this.model = cloneSkeleton(template.scene) as THREE.Group;
@@ -215,7 +218,13 @@ export class Bot {
     this.changeTargetTimer = 3.5 + Math.random() * 5.0;
   }
 
-  public takeDamage(amount: number, hitDir: THREE.Vector3, knockback: number): boolean {
+  public takeDamage(
+    amount: number,
+    hitDir: THREE.Vector3,
+    knockback: number,
+    goreLevel: number = 3,
+    bloodDuration: number = Infinity
+  ): boolean {
     if (!this.isAlive) return false;
 
     this.hp = Math.max(0, this.hp - amount);
@@ -225,12 +234,17 @@ export class Bot {
     this.velocity.addScaledVector(hitDir, knockback);
     this.velocity.y = Math.max(this.velocity.y, knockback * 0.35);
 
+    // Dynamic blood spray on impact
+    if (this.goreSystem && goreLevel > 0) {
+      this.goreSystem.spawnBloodHit(this.position, hitDir, goreLevel, bloodDuration);
+    }
+
     // Update HP bar
     const pct = Math.max(0, this.hp / this.maxHp);
     this.hpBarFill.scale.set(pct, 1, 1);
 
     if (this.hp <= 0) {
-      this.die();
+      this.die(hitDir, goreLevel, bloodDuration);
       return true;
     } else {
       // Quick flinch reaction
@@ -243,13 +257,20 @@ export class Bot {
     return false;
   }
 
-  public die(): void {
+  public die(hitDir?: THREE.Vector3, goreLevel: number = 3, bloodDuration: number = Infinity): void {
     this.isAlive = false;
     this.respawnTimer = 2.8;
     this.hpBarGroup.visible = false;
 
-    // Play death falling animation & bone shattering sounds
-    this.playAction('death', 0.1);
+    // Brutal Gibbing: Skeleton explodes into flying gory bones & flesh chunks!
+    if (this.goreSystem && goreLevel > 0) {
+      this.model.visible = false;
+      this.goreSystem.spawnGibExplosion(this.position, hitDir, goreLevel, bloodDuration);
+    } else {
+      // Play death falling animation if gore is off
+      this.playAction('death', 0.1);
+    }
+
     soundManager.playBoneShatter();
     soundManager.playBotKill();
   }
@@ -262,6 +283,7 @@ export class Bot {
     this.velocity.set(0, 0, 0);
     this.mesh.position.copy(this.position);
     this.hpBarGroup.visible = true;
+    this.model.visible = true; // Restore skeleton mesh visibility on respawn
 
     // Resurrect / crawl from ground animation
     if (this.actions.has('spawn')) {
@@ -429,18 +451,30 @@ export class BotManager {
   public bots: Bot[] = [];
   private scene: THREE.Scene;
   private bounds?: CastleMapBounds;
+  public goreSystem?: GoreSystem;
+  public goreLevel = 3;
+  public bloodDuration = Infinity;
 
   // Cached Realistic Skeleton Templates
   private templates: SkeletonTemplate[] = [];
   private isLoaded = false;
   private desiredBotCount = 5;
 
-  constructor(scene: THREE.Scene, bounds?: CastleMapBounds) {
+  constructor(scene: THREE.Scene, bounds?: CastleMapBounds, goreSystem?: GoreSystem) {
     this.scene = scene;
     this.bounds = bounds;
+    this.goreSystem = goreSystem;
 
     // Load professional 3D skeleton models
     this.loadSkeletonModels();
+  }
+
+  public setGoreSettings(level: number, duration: number): void {
+    this.goreLevel = level;
+    this.bloodDuration = duration;
+    for (const b of this.bots) {
+      b.goreSystem = this.goreSystem;
+    }
   }
 
   private async loadSkeletonModels(): Promise<void> {
@@ -500,7 +534,7 @@ export class BotManager {
       const spawnPos = this.getRandomSpawnPosition();
       // Pick random skeleton archetype (Warrior with sword & shield, Rogue with hood & daggers, Minion)
       const template = this.templates[Math.floor(Math.random() * this.templates.length)];
-      const bot = new Bot(this.scene, spawnPos, template);
+      const bot = new Bot(this.scene, spawnPos, template, this.goreSystem);
       this.bots.push(bot);
     }
   }
@@ -570,7 +604,7 @@ export class BotManager {
     }
 
     if (closestBot) {
-      const killed = closestBot.takeDamage(damagePerPellet, rayDir, knockback);
+      const killed = closestBot.takeDamage(damagePerPellet, rayDir, knockback, this.goreLevel, this.bloodDuration);
       const hitPoint = rayOrigin.clone().addScaledVector(rayDir, closestDist);
       return { hit: true, bot: closestBot, killed, damage: damagePerPellet, hitPoint, distance: closestDist };
     }
@@ -604,7 +638,7 @@ export class BotManager {
         if (diff.lengthSq() < 0.001) diff.set(0, 1, 0);
         else diff.normalize();
 
-        const killed = bot.takeDamage(dmg, diff, knockbackForce * factor);
+        const killed = bot.takeDamage(dmg, diff, knockbackForce * factor, this.goreLevel, this.bloodDuration);
         if (killed) kills++;
       }
     }
