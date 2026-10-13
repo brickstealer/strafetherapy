@@ -32,7 +32,8 @@ export class WorldMap {
         centerRadius: 600,
         corridorHalfWidth: 200,
         ringInnerRadius: 2800,
-        ringOuterRadius: 3250
+        ringOuterRadius: 3250,
+        floor2Height: 140
       }
     };
     this.spawnPoint = new THREE.Vector3(0, 0, 0);
@@ -357,13 +358,14 @@ export class WorldMap {
     });
   }
 
-  // Construct symmetric Castle Citadel compressed by 2x: Central Rotunda, 4 Corridors, Outer Ring
+  // Construct symmetric Castle Citadel: Ground Floor + 2nd Floor with alternative layout & transitions
   private buildLevelGeometry(): void {
     const centerRadius = 600;       // Circular central hall (1,200u diameter)
     const corridorHalfW = 200;      // 400-unit wide corridors
     const ringInnerRadius = 2800;   // Inner boundary of outer circular track (450u wide track)
     const ringOuterRadius = 3250;   // Outer boundary of castle (6,500u diameter)
-    const wallH = 320;              // Castle wall height
+    const wallH = 400;              // Grand Castle wall & ceiling height
+    const floor2Y = 140;            // 2nd floor height level
     const floorSize = 3500;         // Complete floor coverage
     const thick = 20;               // Wall thickness
 
@@ -379,7 +381,7 @@ export class WorldMap {
     const rosetteGroup = createCastleRosetteGroup(200);
     this.scene.add(rosetteGroup);
 
-    // 2. CASTLE STONE CEILING at y = wallH
+    // 2. CASTLE STONE CEILING at y = wallH (400)
     this.addBox(
       new THREE.Vector3(-floorSize, wallH, -floorSize),
       new THREE.Vector3(floorSize, wallH + 20, floorSize),
@@ -387,10 +389,10 @@ export class WorldMap {
       { repeatX: 70, repeatY: 70 }
     );
 
-    // 3. GRAND OUTER CIRCULAR WALL (R = 3250)
+    // 3. GRAND OUTER CIRCULAR WALL (R = 3250, height = 400)
     this.addCylinderWall(ringOuterRadius, wallH, 0, Math.PI * 2, 'stoneWall', THREE.BackSide, 80);
 
-    // 4. INNER ROTUNDA ARCS & OUTER RING INNER ARCS (Between 4 corridors)
+    // 4. INNER ROTUNDA ARCS & OUTER RING INNER ARCS (Ground Floor, height = floor2Y)
     const thetaWCenter = Math.asin(corridorHalfW / centerRadius); // ~0.3398 rad
     const thetaLengthCenter = Math.PI * 0.5 - 2 * thetaWCenter;    // ~0.8911 rad
 
@@ -398,37 +400,318 @@ export class WorldMap {
     const thetaLengthRing = Math.PI * 0.5 - 2 * thetaWRing;        // ~1.4278 rad
 
     for (let k = 0; k < 4; k++) {
-      // Rotunda Inner Arc
+      // Rotunda Inner Arc (y: 0 -> floor2Y)
       const startC = k * Math.PI * 0.5 + thetaWCenter;
-      this.addCylinderWall(centerRadius, wallH, startC, thetaLengthCenter, 'stoneWall', THREE.DoubleSide, 8);
+      this.addCylinderWall(centerRadius, floor2Y, startC, thetaLengthCenter, 'stoneWall', THREE.DoubleSide, 8);
 
-      // Outer Ring Inner Arc
+      // Outer Ring Inner Arc (y: 0 -> floor2Y)
       const startR = k * Math.PI * 0.5 + thetaWRing;
-      this.addCylinderWall(ringInnerRadius, wallH, startR, thetaLengthRing, 'stoneWall', THREE.DoubleSide, 32);
+      this.addCylinderWall(ringInnerRadius, floor2Y, startR, thetaLengthRing, 'stoneWall', THREE.DoubleSide, 32);
     }
 
-    // 5. EIGHT STRAIGHT WALLS OF THE 4 CORRIDORS
+    // 5. EIGHT STRAIGHT WALLS OF THE 4 CORRIDORS (Ground Floor, height = floor2Y)
     const zStart = Math.sqrt(centerRadius * centerRadius - corridorHalfW * corridorHalfW);       // ~565.69
     const zEnd = Math.sqrt(ringInnerRadius * ringInnerRadius - corridorHalfW * corridorHalfW);   // ~2792.85
 
     // North Corridor (Z in [-zEnd, -zStart])
-    this.addBox(new THREE.Vector3(corridorHalfW, 0, -zEnd), new THREE.Vector3(corridorHalfW + thick, wallH, -zStart), 'stoneWall', { repeatX: 24, repeatY: 4 });
-    this.addBox(new THREE.Vector3(-corridorHalfW - thick, 0, -zEnd), new THREE.Vector3(-corridorHalfW, wallH, -zStart), 'stoneWall', { repeatX: 24, repeatY: 4 });
+    this.addBox(new THREE.Vector3(corridorHalfW, 0, -zEnd), new THREE.Vector3(corridorHalfW + thick, floor2Y, -zStart), 'stoneWall', { repeatX: 24, repeatY: 2 });
+    this.addBox(new THREE.Vector3(-corridorHalfW - thick, 0, -zEnd), new THREE.Vector3(-corridorHalfW, floor2Y, -zStart), 'stoneWall', { repeatX: 24, repeatY: 2 });
 
     // South Corridor (Z in [zStart, zEnd])
-    this.addBox(new THREE.Vector3(corridorHalfW, 0, zStart), new THREE.Vector3(corridorHalfW + thick, wallH, zEnd), 'stoneWall', { repeatX: 24, repeatY: 4 });
-    this.addBox(new THREE.Vector3(-corridorHalfW - thick, 0, zStart), new THREE.Vector3(-corridorHalfW, wallH, zEnd), 'stoneWall', { repeatX: 24, repeatY: 4 });
+    this.addBox(new THREE.Vector3(corridorHalfW, 0, zStart), new THREE.Vector3(corridorHalfW + thick, floor2Y, zEnd), 'stoneWall', { repeatX: 24, repeatY: 2 });
+    this.addBox(new THREE.Vector3(-corridorHalfW - thick, 0, zStart), new THREE.Vector3(-corridorHalfW, floor2Y, zEnd), 'stoneWall', { repeatX: 24, repeatY: 2 });
 
     // East Corridor (X in [zStart, zEnd])
-    this.addBox(new THREE.Vector3(zStart, 0, -corridorHalfW - thick), new THREE.Vector3(zEnd, wallH, -corridorHalfW), 'stoneWall', { repeatX: 24, repeatY: 4 });
-    this.addBox(new THREE.Vector3(zStart, 0, corridorHalfW), new THREE.Vector3(zEnd, wallH, corridorHalfW + thick), 'stoneWall', { repeatX: 24, repeatY: 4 });
+    this.addBox(new THREE.Vector3(zStart, 0, -corridorHalfW - thick), new THREE.Vector3(zEnd, floor2Y, -corridorHalfW), 'stoneWall', { repeatX: 24, repeatY: 2 });
+    this.addBox(new THREE.Vector3(zStart, 0, corridorHalfW), new THREE.Vector3(zEnd, floor2Y, corridorHalfW + thick), 'stoneWall', { repeatX: 24, repeatY: 2 });
 
     // West Corridor (X in [-zEnd, -zStart])
-    this.addBox(new THREE.Vector3(-zEnd, 0, -corridorHalfW - thick), new THREE.Vector3(-zStart, wallH, -corridorHalfW), 'stoneWall', { repeatX: 24, repeatY: 4 });
-    this.addBox(new THREE.Vector3(-zEnd, 0, corridorHalfW), new THREE.Vector3(-zStart, wallH, corridorHalfW + thick), 'stoneWall', { repeatX: 24, repeatY: 4 });
+    this.addBox(new THREE.Vector3(-zEnd, 0, -corridorHalfW - thick), new THREE.Vector3(-zStart, floor2Y, -corridorHalfW), 'stoneWall', { repeatX: 24, repeatY: 2 });
+    this.addBox(new THREE.Vector3(-zEnd, 0, corridorHalfW), new THREE.Vector3(-zStart, floor2Y, corridorHalfW + thick), 'stoneWall', { repeatX: 24, repeatY: 2 });
 
-    // 6. DECORATE CITADEL WITH TORCHES & GOTHIC OIL PAINTINGS
+    // 6. BUILD 2ND FLOOR (Alternative Layout: Sky Mezzanine, 4 Bastion Cathedrals, Flyovers, Overpasses)
+    this.buildSecondFloorGeometry(floor2Y);
+
+    // 7. BUILD FLOOR TRANSITIONS (Speed Ramps, Quake Launch Pads, Grand Stairs)
+    this.buildFloorTransitions(floor2Y);
+
+    // 8. DECORATE CITADEL WITH TORCHES & GOTHIC OIL PAINTINGS (Floor 1 + Floor 2)
     this.populateCitadelDecorations(centerRadius, corridorHalfW, ringInnerRadius, ringOuterRadius, zStart, zEnd);
+    this.populateSecondFloorDecorations(floor2Y);
+  }
+
+  // Construct 2nd floor with distinct layout ("с другой планировкой"):
+  // 1. Central Sky Mezzanine & Grand Oculus drop-chasm (over central rotunda)
+  // 2. Four expansive Bastion Cathedrals / Sky Sanctuaries (over the 4 outer bastions)
+  // 3. Four Diagonal Sky Highways (45 deg angle flyovers connecting Center to Bastions)
+  // 4. Four Cross Overpass Bridges (crossing over the 1st floor corridors)
+  // 5. Outer Perimeter Sky Deck (connecting outer perimeter on floor 2)
+  private buildSecondFloorGeometry(floor2Y: number): void {
+    const floorThick = 12;
+    const slabMinY = floor2Y - floorThick;
+    const slabMaxY = floor2Y;
+
+    // =========================================================================
+    // 1. CENTRAL FLOATING SKY MEZZANINE & GRAND OCULUS
+    // =========================================================================
+    // Over the center rotunda (R=600), we build a floating gallery slab with a center opening (R < 250)
+    // The Grand Oculus allows viewing the castle crest rosette below and diving down at high speeds!
+    const oculusRadius = 250;
+    const mezOuterRadius = 640;
+
+    // 4 Slabs surrounding the Oculus
+    // North Mezzanine
+    this.addBox(
+      new THREE.Vector3(-mezOuterRadius, slabMinY, -mezOuterRadius),
+      new THREE.Vector3(mezOuterRadius, slabMaxY, -oculusRadius),
+      'floor',
+      { repeatX: 12, repeatY: 4 }
+    );
+    // South Mezzanine
+    this.addBox(
+      new THREE.Vector3(-mezOuterRadius, slabMinY, oculusRadius),
+      new THREE.Vector3(mezOuterRadius, slabMaxY, mezOuterRadius),
+      'floor',
+      { repeatX: 12, repeatY: 4 }
+    );
+    // East Mezzanine Wings
+    this.addBox(
+      new THREE.Vector3(oculusRadius, slabMinY, -oculusRadius),
+      new THREE.Vector3(mezOuterRadius, slabMaxY, oculusRadius),
+      'floor',
+      { repeatX: 4, repeatY: 5 }
+    );
+    // West Mezzanine Wings
+    this.addBox(
+      new THREE.Vector3(-mezOuterRadius, slabMinY, -oculusRadius),
+      new THREE.Vector3(-oculusRadius, slabMaxY, oculusRadius),
+      'floor',
+      { repeatX: 4, repeatY: 5 }
+    );
+
+    // Glowing Neon Cyan border around the Oculus opening
+    this.addBox(new THREE.Vector3(-oculusRadius - 4, slabMaxY, -oculusRadius - 4), new THREE.Vector3(oculusRadius + 4, slabMaxY + 2, -oculusRadius), 'neonCyan');
+    this.addBox(new THREE.Vector3(-oculusRadius - 4, slabMaxY, oculusRadius), new THREE.Vector3(oculusRadius + 4, slabMaxY + 2, oculusRadius + 4), 'neonCyan');
+    this.addBox(new THREE.Vector3(-oculusRadius - 4, slabMaxY, -oculusRadius), new THREE.Vector3(-oculusRadius, slabMaxY + 2, oculusRadius), 'neonCyan');
+    this.addBox(new THREE.Vector3(oculusRadius, slabMaxY, -oculusRadius), new THREE.Vector3(oculusRadius + 4, slabMaxY + 2, oculusRadius), 'neonCyan');
+
+    // 4 Corner Pillars on the Sky Mezzanine
+    this.addMonumentalPillar(new THREE.Vector3(-480, floor2Y, -480), 160, 36, true);
+    this.addMonumentalPillar(new THREE.Vector3(480, floor2Y, -480), 160, 36, true);
+    this.addMonumentalPillar(new THREE.Vector3(-480, floor2Y, 480), 160, 36, true);
+    this.addMonumentalPillar(new THREE.Vector3(480, floor2Y, 480), 160, 36, true);
+
+    // =========================================================================
+    // 2. FOUR UPPER BASTION CATHEDRALS (The 4 Quarters at y = 140)
+    // =========================================================================
+    // On the 1st floor, these 4 quadrants were closed bastions.
+    // On the 2nd floor, they open into 4 immense open-air halls (2300 x 2300 units each)!
+    const bMin = 360;
+    const bMax = 2650;
+
+    // NE Bastion Hall (+X, -Z)
+    this.addBox(new THREE.Vector3(bMin, slabMinY, -bMax), new THREE.Vector3(bMax, slabMaxY, -bMin), 'floor', { repeatX: 24, repeatY: 24 });
+    // NW Bastion Hall (-X, -Z)
+    this.addBox(new THREE.Vector3(-bMax, slabMinY, -bMax), new THREE.Vector3(-bMin, slabMaxY, -bMin), 'floor', { repeatX: 24, repeatY: 24 });
+    // SE Bastion Hall (+X, +Z)
+    this.addBox(new THREE.Vector3(bMin, slabMinY, bMin), new THREE.Vector3(bMax, slabMaxY, bMax), 'floor', { repeatX: 24, repeatY: 24 });
+    // SW Bastion Hall (-X, +Z)
+    this.addBox(new THREE.Vector3(-bMax, slabMinY, bMin), new THREE.Vector3(-bMin, slabMaxY, bMax), 'floor', { repeatX: 24, repeatY: 24 });
+
+    // Monumental pillars inside each Bastion Hall
+    const pillarCoords = [
+      { x: 1400, z: -1400 }, { x: 1900, z: -1400 }, { x: 1400, z: -1900 }, { x: 1900, z: -1900 }, // NE
+      { x: -1400, z: -1400 }, { x: -1900, z: -1400 }, { x: -1400, z: -1900 }, { x: -1900, z: -1900 }, // NW
+      { x: 1400, z: 1400 }, { x: 1900, z: 1400 }, { x: 1400, z: 1900 }, { x: 1900, z: 1900 }, // SE
+      { x: -1400, z: 1400 }, { x: -1900, z: 1400 }, { x: -1400, z: 1900 }, { x: -1900, z: 1900 }, // SW
+    ];
+    pillarCoords.forEach((pt) => {
+      this.addMonumentalPillar(new THREE.Vector3(pt.x, floor2Y, pt.z), 180, 42, true);
+    });
+
+    // =========================================================================
+    // 3. FOUR CROSS OVERPASS BRIDGES (Crossing above 1st floor corridors)
+    // =========================================================================
+    // Linking the Bastion Halls into a continuous inner ring on Floor 2!
+    // North Overpass (connects NW and NE halls above North Corridor)
+    this.addBox(new THREE.Vector3(-bMin - 20, slabMinY, -1650), new THREE.Vector3(bMin + 20, slabMaxY, -1250), 'floor', { repeatX: 8, repeatY: 4 });
+    this.addBox(new THREE.Vector3(-bMin - 20, slabMaxY, -1656), new THREE.Vector3(bMin + 20, slabMaxY + 2, -1650), 'neonOrange');
+    this.addBox(new THREE.Vector3(-bMin - 20, slabMaxY, -1250), new THREE.Vector3(bMin + 20, slabMaxY + 2, -1244), 'neonOrange');
+
+    // South Overpass (connects SW and SE halls above South Corridor)
+    this.addBox(new THREE.Vector3(-bMin - 20, slabMinY, 1250), new THREE.Vector3(bMin + 20, slabMaxY, 1650), 'floor', { repeatX: 8, repeatY: 4 });
+    this.addBox(new THREE.Vector3(-bMin - 20, slabMaxY, 1244), new THREE.Vector3(bMin + 20, slabMaxY + 2, 1250), 'neonOrange');
+    this.addBox(new THREE.Vector3(-bMin - 20, slabMaxY, 1650), new THREE.Vector3(bMin + 20, slabMaxY + 2, 1656), 'neonOrange');
+
+    // East Overpass (connects NE and SE halls above East Corridor)
+    this.addBox(new THREE.Vector3(1250, slabMinY, -bMin - 20), new THREE.Vector3(1650, slabMaxY, bMin + 20), 'floor', { repeatX: 4, repeatY: 8 });
+    this.addBox(new THREE.Vector3(1244, slabMaxY, -bMin - 20), new THREE.Vector3(1250, slabMaxY + 2, bMin + 20), 'neonOrange');
+    this.addBox(new THREE.Vector3(1650, slabMaxY, -bMin - 20), new THREE.Vector3(1656, slabMaxY + 2, bMin + 20), 'neonOrange');
+
+    // West Overpass (connects NW and SW halls above West Corridor)
+    this.addBox(new THREE.Vector3(-1650, slabMinY, -bMin - 20), new THREE.Vector3(-1250, slabMaxY, bMin + 20), 'floor', { repeatX: 4, repeatY: 8 });
+    this.addBox(new THREE.Vector3(-1656, slabMaxY, -bMin - 20), new THREE.Vector3(-1650, slabMaxY + 2, bMin + 20), 'neonOrange');
+    this.addBox(new THREE.Vector3(-1250, slabMaxY, -bMin - 20), new THREE.Vector3(-1244, slabMaxY + 2, bMin + 20), 'neonOrange');
+
+    // =========================================================================
+    // 4. FOUR DIAGONAL SKY HIGHWAYS (Flyovers connecting Mezzanine to Bastions)
+    // =========================================================================
+    // Width 280 units, flying at 45 degree angles across the Citadel
+    this.buildDiagonalBridge(new THREE.Vector3(450, floor2Y, -450), new THREE.Vector3(1150, floor2Y, -1150), 280);
+    this.buildDiagonalBridge(new THREE.Vector3(-450, floor2Y, -450), new THREE.Vector3(-1150, floor2Y, -1150), 280);
+    this.buildDiagonalBridge(new THREE.Vector3(450, floor2Y, 450), new THREE.Vector3(1150, floor2Y, 1150), 280);
+    this.buildDiagonalBridge(new THREE.Vector3(-450, floor2Y, 450), new THREE.Vector3(-1150, floor2Y, 1150), 280);
+
+    // =========================================================================
+    // 5. OUTER PERIMETER SKY DECK (Circular flyovers along outer ring wall)
+    // =========================================================================
+    // Outer skybridges across the corridor openings at the perimeter
+    this.addBox(new THREE.Vector3(-260, slabMinY, -3150), new THREE.Vector3(260, slabMaxY, -2800), 'floor', { repeatX: 6, repeatY: 4 });
+    this.addBox(new THREE.Vector3(2800, slabMinY, -260), new THREE.Vector3(3150, slabMaxY, 260), 'floor', { repeatX: 4, repeatY: 6 });
+    this.addBox(new THREE.Vector3(-260, slabMinY, 2800), new THREE.Vector3(260, slabMaxY, 3150), 'floor', { repeatX: 6, repeatY: 4 });
+    this.addBox(new THREE.Vector3(-3150, slabMinY, -260), new THREE.Vector3(-2800, slabMaxY, 260), 'floor', { repeatX: 4, repeatY: 6 });
+  }
+
+  // Build a seamless diagonal bridge slab and colliders between two points at floor2Y
+  private buildDiagonalBridge(start: THREE.Vector3, end: THREE.Vector3, width: number): void {
+    const floorThick = 12;
+    const slabMinY = start.y - floorThick;
+    const slabMaxY = start.y;
+
+    const dir = end.clone().sub(start);
+    const length = dir.length();
+    const midPoint = start.clone().add(end).multiplyScalar(0.5);
+
+    // Visual Mesh for the diagonal bridge slab
+    const bridgeGeo = new THREE.BoxGeometry(width, floorThick, length);
+    const bridgeMesh = new THREE.Mesh(bridgeGeo, this.materials['floor']);
+    bridgeMesh.position.set(midPoint.x, slabMinY + floorThick * 0.5, midPoint.z);
+    bridgeMesh.lookAt(end.x, slabMinY + floorThick * 0.5, end.z);
+    bridgeMesh.receiveShadow = true;
+    bridgeMesh.castShadow = true;
+    this.scene.add(bridgeMesh);
+
+    // Neon edge trims
+    const neonGeo = new THREE.BoxGeometry(4, 2, length);
+    const neonLeft = new THREE.Mesh(neonGeo, this.materials['neonCyan']);
+    const neonRight = new THREE.Mesh(neonGeo, this.materials['neonCyan']);
+    const halfW = width * 0.5;
+    neonLeft.position.set(-halfW, floorThick * 0.5 + 1, 0);
+    neonRight.position.set(halfW, floorThick * 0.5 + 1, 0);
+    bridgeMesh.add(neonLeft);
+    bridgeMesh.add(neonRight);
+
+    // Discrete overlapping AABB colliders for exact Quake collision
+    const numSteps = 7;
+    const stepVec = dir.clone().divideScalar(numSteps);
+    const boxSize = width * 1.05;
+    const halfBox = boxSize * 0.5;
+
+    for (let i = 0; i <= numSteps; i++) {
+      const p = start.clone().addScaledVector(stepVec, i);
+      this.collisionWorld.boxes.push({
+        type: 'box',
+        min: new THREE.Vector3(p.x - halfBox, slabMinY, p.z - halfBox),
+        max: new THREE.Vector3(p.x + halfBox, slabMaxY, p.z + halfBox)
+      });
+    }
+  }
+
+  // Construct all transitions to Floor 2:
+  // 1. High-speed ascending ramps (North & South)
+  // 2. High-impulse Quake Launch Pads (East, West & Rotunda)
+  // 3. Grand cascading stairways (NW & SE)
+  private buildFloorTransitions(floor2Y: number): void {
+    // -------------------------------------------------------------------------
+    // 1. NORTH & SOUTH SPEED RAMPS (Smooth ~13 deg ascent for bunnyhop preservation)
+    // -------------------------------------------------------------------------
+    // North Ramp: ascends from z = -800 (y = 0) to z = -1400 (y = 140)
+    // Width 180 (placed on left side of corridor, x in [-180, 0])
+    // Leaving x in [10, 190] completely open for 1st-floor high-speed traffic!
+    this.addRamp(
+      new THREE.Vector3(-90, 0, -800),
+      new THREE.Vector3(-90, floor2Y, -1400),
+      180
+    );
+
+    // South Ramp: ascends from z = 800 (y = 0) to z = 1400 (y = 140)
+    // Width 180 (placed on right side of corridor, x in [0, 180])
+    // Leaving x in [-190, -10] completely open!
+    this.addRamp(
+      new THREE.Vector3(90, 0, 800),
+      new THREE.Vector3(90, floor2Y, 1400),
+      180
+    );
+
+    // -------------------------------------------------------------------------
+    // 2. QUAKE LAUNCH PADS (Dynamic Jump Pads)
+    // -------------------------------------------------------------------------
+    // East Launch Pad: shoots player up and forward onto the East Overpass Bridge at (1450, 140, 0)
+    this.addLaunchPad(
+      new THREE.Vector3(960, 0, -60),
+      new THREE.Vector3(1080, 6, 60),
+      new THREE.Vector3(450, 530, 0)
+    );
+
+    // West Launch Pad: shoots player onto West Overpass Bridge at (-1450, 140, 0)
+    this.addLaunchPad(
+      new THREE.Vector3(-1080, 0, -60),
+      new THREE.Vector3(-960, 6, 60),
+      new THREE.Vector3(-450, 530, 0)
+    );
+
+    // Rotunda Jump Pads: launch player upwards onto the Central Sky Mezzanine!
+    this.addLaunchPad(
+      new THREE.Vector3(320, 0, 320),
+      new THREE.Vector3(420, 6, 420),
+      new THREE.Vector3(-140, 560, -140)
+    );
+    this.addLaunchPad(
+      new THREE.Vector3(-420, 0, -420),
+      new THREE.Vector3(-320, 6, -320),
+      new THREE.Vector3(140, 560, 140)
+    );
+
+    // -------------------------------------------------------------------------
+    // 3. GRAND CASCADING STAIRWAYS (Stepped terraces with steps <= 14 units)
+    // -------------------------------------------------------------------------
+    // Stairway 1: Ascent into NW Bastion Hall from North Corridor (z = -2000)
+    this.addSteppedStairs(
+      new THREE.Vector3(-190, 0, -2000),
+      new THREE.Vector3(-550, floor2Y, -2000),
+      220,
+      10
+    );
+
+    // Stairway 2: Ascent into SE Bastion Hall from South Corridor (z = 2000)
+    this.addSteppedStairs(
+      new THREE.Vector3(190, 0, 2000),
+      new THREE.Vector3(550, floor2Y, 2000),
+      220,
+      10
+    );
+  }
+
+  // Populate torches and oil paintings across the 2nd floor galleries
+  private populateSecondFloorDecorations(floor2Y: number): void {
+    let paintingIdx = 1;
+    const eyeH = floor2Y + 65; // Eye height on floor 2: 205
+
+    // 1. Torches and paintings along outer wall at floor 2 height
+    const numOuterSpots = 16;
+    const ringOuterRadius = 3250;
+    for (let i = 0; i < numOuterSpots; i++) {
+      const a = (i * Math.PI * 2) / numOuterSpots;
+      const x = Math.sin(a) * (ringOuterRadius - 12);
+      const z = Math.cos(a) * (ringOuterRadius - 12);
+      const yaw = Math.atan2(-x, -z);
+
+      if (i % 2 === 0) {
+        this.addWallTorch(new THREE.Vector3(x, eyeH, z), yaw, i % 4 === 0);
+      } else {
+        this.addWallPainting(new THREE.Vector3(x, eyeH, z), yaw, paintingIdx++);
+      }
+    }
   }
 
   // Populate torches and oil paintings throughout rotunda, corridors and outer ring
@@ -568,7 +851,8 @@ export class WorldMap {
     thetaLength: number,
     materialKey: string,
     side: THREE.Side = THREE.DoubleSide,
-    uvRepeatX: number = 8
+    uvRepeatX: number = 8,
+    baseY: number = 0
   ): THREE.Mesh {
     const geo = new THREE.CylinderGeometry(
       radius,
@@ -586,13 +870,13 @@ export class WorldMap {
       cloned.side = side;
       if (cloned.map) {
         cloned.map = cloned.map.clone();
-        cloned.map.repeat.set(uvRepeatX, 4);
+        cloned.map.repeat.set(uvRepeatX, Math.max(1, Math.round(height / 80)));
         cloned.map.needsUpdate = true;
       }
       mat = cloned;
     }
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(0, height * 0.5, 0);
+    mesh.position.set(0, baseY + height * 0.5, 0);
     mesh.receiveShadow = true;
     mesh.castShadow = true;
     this.scene.add(mesh);
@@ -754,38 +1038,54 @@ export class WorldMap {
 
 
 
-  // Add an angled ramp collider and visual mesh
+  // Add an angled ramp collider and visual mesh (supports any horizontal orientation)
   public addRamp(start: THREE.Vector3, end: THREE.Vector3, width: number): void {
-    const halfW = width * 0.5;
-    const minX = Math.min(start.x, end.x) - halfW;
-    const maxX = Math.max(start.x, end.x) + halfW;
-    const minZ = Math.min(start.z, end.z);
-    const maxZ = Math.max(start.z, end.z);
-
     const dir = end.clone().sub(start);
     const length = dir.length();
+    const hDir = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+    const across = new THREE.Vector3(-hDir.z, 0, hDir.x).normalize();
+    const halfW = width * 0.5;
 
-    const across = new THREE.Vector3(1, 0, 0);
+    // Normal to ramp plane pointing upwards
     const normal = new THREE.Vector3().crossVectors(across, dir).normalize();
     if (normal.y < 0) normal.negate();
 
     const planeConstant = normal.dot(start);
 
+    // Compute bounding rectangle in XZ plane
+    const p1 = start.clone().addScaledVector(across, -halfW);
+    const p2 = start.clone().addScaledVector(across, halfW);
+    const p3 = end.clone().addScaledVector(across, -halfW);
+    const p4 = end.clone().addScaledVector(across, halfW);
+
+    const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
+    const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
+    const minZ = Math.min(p1.z, p2.z, p3.z, p4.z);
+    const maxZ = Math.max(p1.z, p2.z, p3.z, p4.z);
+
+    // Visual Mesh for ramp surface
     const rampGeo = new THREE.BoxGeometry(width, 6, length);
     const rampMesh = new THREE.Mesh(rampGeo, this.materials['ramp']);
-
     const midPoint = start.clone().add(end).multiplyScalar(0.5);
     rampMesh.position.copy(midPoint);
     rampMesh.lookAt(end.x, end.y, end.z);
     rampMesh.rotateX(Math.PI / 2);
+    rampMesh.receiveShadow = true;
+    rampMesh.castShadow = true;
     this.scene.add(rampMesh);
 
+    // Solid stone support underneath the ramp
     const minY = Math.min(start.y, end.y);
     const maxY = Math.max(start.y, end.y);
-    const supportGeo = new THREE.BoxGeometry(width, maxY - minY, length);
-    const supportMesh = new THREE.Mesh(supportGeo, this.materials['stoneWall']);
-    supportMesh.position.set(midPoint.x, minY + (maxY - minY) * 0.5 - 3, midPoint.z);
-    this.scene.add(supportMesh);
+    const heightDiff = maxY - minY;
+    if (heightDiff > 4) {
+      const supportGeo = new THREE.BoxGeometry(width * 0.98, heightDiff, length * 0.98);
+      const supportMesh = new THREE.Mesh(supportGeo, this.materials['stoneWall']);
+      supportMesh.position.set(midPoint.x, minY + heightDiff * 0.5 - 3, midPoint.z);
+      supportMesh.lookAt(end.x, minY + heightDiff * 0.5 - 3, end.z);
+      supportMesh.rotateX(Math.PI / 2);
+      this.scene.add(supportMesh);
+    }
 
     this.collisionWorld.ramps.push({
       type: 'ramp',
@@ -799,6 +1099,62 @@ export class WorldMap {
       planeNormal: normal.clone(),
       planeConstant
     });
+  }
+
+  // Add cascading stair terraces (steps <= 14 units tall for smooth Quake step-up)
+  public addSteppedStairs(start: THREE.Vector3, end: THREE.Vector3, width: number, numSteps: number): void {
+    const stepDelta = end.clone().sub(start).divideScalar(numSteps);
+    const hDir = new THREE.Vector3(stepDelta.x, 0, stepDelta.z).normalize();
+    const across = new THREE.Vector3(-hDir.z, 0, hDir.x).normalize();
+    const halfW = width * 0.5;
+
+    for (let i = 0; i < numSteps; i++) {
+      const pStart = start.clone().addScaledVector(stepDelta, i);
+      const pEnd = start.clone().addScaledVector(stepDelta, i + 1);
+      const stepY = pEnd.y;
+
+      const p1 = pStart.clone().addScaledVector(across, -halfW);
+      const p2 = pStart.clone().addScaledVector(across, halfW);
+      const p3 = pEnd.clone().addScaledVector(across, -halfW);
+      const p4 = pEnd.clone().addScaledVector(across, halfW);
+
+      const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
+      const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
+      const minZ = Math.min(p1.z, p2.z, p3.z, p4.z);
+      const maxZ = Math.max(p1.z, p2.z, p3.z, p4.z);
+
+      this.addBox(
+        new THREE.Vector3(minX, 0, minZ),
+        new THREE.Vector3(maxX, stepY, maxZ),
+        'stoneWall',
+        { repeatX: 4, repeatY: 1 }
+      );
+    }
+  }
+
+  // Add a monumental stone pillar with capital and torch
+  public addMonumentalPillar(pos: THREE.Vector3, height: number, size: number = 36, withTorch: boolean = true): void {
+    const halfS = size * 0.5;
+    // Base & Shaft
+    this.addBox(
+      new THREE.Vector3(pos.x - halfS, pos.y, pos.z - halfS),
+      new THREE.Vector3(pos.x + halfS, pos.y + height, pos.z + halfS),
+      'stoneWall',
+      { repeatX: 1, repeatY: 3 }
+    );
+    // Capital trim
+    const capSize = size + 10;
+    const halfCap = capSize * 0.5;
+    this.addBox(
+      new THREE.Vector3(pos.x - halfCap, pos.y + height - 8, pos.z - halfCap),
+      new THREE.Vector3(pos.x + halfCap, pos.y + height, pos.z + halfCap),
+      'pillar'
+    );
+
+    if (withTorch) {
+      // Add torch at eye height relative to pillar base
+      this.addWallTorch(new THREE.Vector3(pos.x, pos.y + 55, pos.z + halfS + 4), 0, true);
+    }
   }
 
   // Add an interactive launch pad

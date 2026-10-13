@@ -6,6 +6,7 @@ export interface CastleMapBounds {
   corridorHalfWidth: number;
   ringInnerRadius: number;
   ringOuterRadius: number;
+  floor2Height?: number;
 }
 
 export interface CollisionWorld {
@@ -325,7 +326,7 @@ export class Pmove {
       ) {
         if (Math.abs(ramp.planeNormal.y) > 0.001) {
           const rampY = (ramp.planeConstant - ramp.planeNormal.x * x - ramp.planeNormal.z * z) / ramp.planeNormal.y;
-          if (rampY <= currentY + Pmove.STEP_SIZE + 4 && rampY >= currentY - 24) {
+          if (rampY <= currentY + Pmove.STEP_SIZE + 8 && rampY >= currentY - 36) {
             if (rampY > highestY) {
               highestY = rampY;
               found = true;
@@ -350,7 +351,7 @@ export class Pmove {
     }
 
     const ground = this.getGroundAt(this.state.position.x, this.state.position.z, this.state.position.y);
-    if (ground && Math.abs(this.state.position.y - ground.groundY) <= 3.5 && ground.normal.y >= 0.65) {
+    if (ground && Math.abs(this.state.position.y - ground.groundY) <= 5.0 && ground.normal.y >= 0.65) {
       this.state.isGrounded = true;
       this.state.groundNormal.copy(ground.normal);
       this.state.position.y = ground.groundY;
@@ -522,6 +523,12 @@ export class Pmove {
         v.x -= vn * nx;
         v.z -= vn * nz;
       }
+    }
+
+    // Ground floor specific curved and corridor walls only apply below floor 2
+    const floor2Height = this.world.castleBounds.floor2Height ?? 135;
+    if (p.y >= floor2Height) {
+      return;
     }
 
     const inQuarterBastion = Math.abs(p.x) > corridorHalfWidth && Math.abs(p.z) > corridorHalfWidth;
