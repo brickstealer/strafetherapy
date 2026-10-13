@@ -152,7 +152,7 @@ export class Hud {
           </div>
 
           <div class="hud-card weapon-panel">
-            <div class="hud-label">WEAPON [1 / 2]</div>
+            <div class="hud-label">WEAPON [1 / 2 / 3]</div>
             <div id="hud-weapon-name" class="hud-value weapon-badge">[1] SHOTGUN</div>
             <div class="ammo-val">∞ AMMO</div>
           </div>
@@ -233,11 +233,11 @@ export class Hud {
                   </div>
                   <div class="guide-item">
                     <span class="key-badge">LMB (FIRE)</span>
-                    <span class="desc">Shoot Shotgun / Rocket Launcher (Rocket Jump!)</span>
+                    <span class="desc">Shoot Shotgun / Rocket / Railgun (One-Shot!)</span>
                   </div>
                   <div class="guide-item">
-                    <span class="key-badge">1 / 2 / WHEEL / Q</span>
-                    <span class="desc">Switch Weapon (Infinite Ammo)</span>
+                    <span class="key-badge">1 / 2 / 3 / WHEEL / Q</span>
+                    <span class="desc">Switch Weapon (Shotgun / Rocket / Railgun)</span>
                   </div>
                   <div class="guide-item">
                     <span class="key-badge">R</span>
@@ -419,8 +419,16 @@ export class Hud {
 
   public setWeapon(weapon: WeaponType): void {
     if (this.weaponNameEl) {
-      this.weaponNameEl.textContent = weapon === 'shotgun' ? '[1] SHOTGUN' : '[2] ROCKET LAUNCHER';
-      this.weaponNameEl.className = `hud-value weapon-badge ${weapon === 'shotgun' ? 'shotgun-badge' : 'rocket-badge'}`;
+      if (weapon === 'shotgun') {
+        this.weaponNameEl.textContent = '[1] SHOTGUN';
+        this.weaponNameEl.className = 'hud-value weapon-badge shotgun-badge';
+      } else if (weapon === 'rocket') {
+        this.weaponNameEl.textContent = '[2] ROCKET LAUNCHER';
+        this.weaponNameEl.className = 'hud-value weapon-badge rocket-badge';
+      } else {
+        this.weaponNameEl.textContent = '[3] RAILGUN';
+        this.weaponNameEl.className = 'hud-value weapon-badge railgun-badge';
+      }
     }
   }
 

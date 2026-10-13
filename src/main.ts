@@ -304,6 +304,9 @@ class Game {
       case 'Digit2':
         if (isDown) this.weaponManager.switchWeapon('rocket');
         break;
+      case 'Digit3':
+        if (isDown) this.weaponManager.switchWeapon('railgun');
+        break;
       case 'KeyQ':
         if (isDown) this.weaponManager.toggleWeapon();
         break;

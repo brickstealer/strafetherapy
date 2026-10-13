@@ -518,6 +518,78 @@ export class SoundManager {
       osc.stop(t + 0.08);
     });
   }
+
+  // Authentic Quake CPMA Railgun Sound:
+  // 1. Instant high-voltage electrical arc crack (sawtooth sweep from 2800Hz down to 110Hz)
+  // 2. Chest-thumping electromagnetic punch (sub-bass 120Hz down to 32Hz)
+  // 3. Iconic singing ionized air beam whine (resonant bandpass 1500Hz descending to 450Hz with sharp Q)
+  // 4. Capacitor recharge mechanical clack after 680ms
+  public playRailgunFire(): void {
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    const now = this.ctx.currentTime;
+
+    // 1. High-Voltage Arc Crack (Instant punch)
+    const crackOsc = this.ctx.createOscillator();
+    const crackGain = this.ctx.createGain();
+    crackOsc.type = 'sawtooth';
+    crackOsc.frequency.setValueAtTime(2800, now);
+    crackOsc.frequency.exponentialRampToValueAtTime(110, now + 0.09);
+    crackGain.gain.setValueAtTime(0.85, now);
+    crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    crackOsc.connect(crackGain);
+    crackGain.connect(this.masterGain);
+    crackOsc.start(now);
+    crackOsc.stop(now + 0.13);
+
+    // 2. Heavy Electromagnetic Sub-Bass Thump
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(120, now);
+    subOsc.frequency.exponentialRampToValueAtTime(32, now + 0.45);
+    subGain.gain.setValueAtTime(0.95, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    subOsc.connect(subGain);
+    subGain.connect(this.masterGain);
+    subOsc.start(now);
+    subOsc.stop(now + 0.52);
+
+    // 3. Iconic Quake Ionized Air / Gaussian Whine (Singing trail beam)
+    const whineOsc = this.ctx.createOscillator();
+    const whineGain = this.ctx.createGain();
+    const whineFilter = this.ctx.createBiquadFilter();
+    whineOsc.type = 'sawtooth';
+    whineOsc.frequency.setValueAtTime(1350, now);
+    whineOsc.frequency.exponentialRampToValueAtTime(320, now + 0.55);
+
+    whineFilter.type = 'bandpass';
+    whineFilter.frequency.setValueAtTime(1500, now);
+    whineFilter.frequency.exponentialRampToValueAtTime(450, now + 0.55);
+    whineFilter.Q.setValueAtTime(12.0, now); // Sharp metallic resonance
+
+    whineGain.gain.setValueAtTime(0.55, now);
+    whineGain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+    whineOsc.connect(whineFilter);
+    whineFilter.connect(whineGain);
+    whineGain.connect(this.masterGain);
+    whineOsc.start(now);
+    whineOsc.stop(now + 0.62);
+
+    // 4. Capacitor Recharge Cycle Clack (at now + 0.68s)
+    const clackTime = now + 0.68;
+    const clackOsc = this.ctx.createOscillator();
+    const clackGain = this.ctx.createGain();
+    clackOsc.type = 'triangle';
+    clackOsc.frequency.setValueAtTime(1400, clackTime);
+    clackOsc.frequency.exponentialRampToValueAtTime(220, clackTime + 0.06);
+    clackGain.gain.setValueAtTime(0.28, clackTime);
+    clackGain.gain.exponentialRampToValueAtTime(0.001, clackTime + 0.07);
+    clackOsc.connect(clackGain);
+    clackGain.connect(this.masterGain);
+    clackOsc.start(clackTime);
+    clackOsc.stop(clackTime + 0.08);
+  }
 }
 
 export const soundManager = new SoundManager();

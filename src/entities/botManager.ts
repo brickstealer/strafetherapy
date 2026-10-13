@@ -9,6 +9,8 @@ export interface BotDamageResult {
   bot?: Bot;
   killed: boolean;
   damage: number;
+  hitPoint?: THREE.Vector3;
+  distance?: number;
 }
 
 export interface SkeletonTemplate {
@@ -569,7 +571,8 @@ export class BotManager {
 
     if (closestBot) {
       const killed = closestBot.takeDamage(damagePerPellet, rayDir, knockback);
-      return { hit: true, bot: closestBot, killed, damage: damagePerPellet };
+      const hitPoint = rayOrigin.clone().addScaledVector(rayDir, closestDist);
+      return { hit: true, bot: closestBot, killed, damage: damagePerPellet, hitPoint, distance: closestDist };
     }
 
     return { hit: false, killed: false, damage: 0 };

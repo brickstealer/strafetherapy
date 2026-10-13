@@ -28,6 +28,17 @@ export interface TracerFX {
   maxLife: number;
 }
 
+export interface RailBeamFX {
+  group: THREE.Group;
+  coreMesh: THREE.Mesh;
+  innerMesh: THREE.Mesh;
+  spiralMesh: THREE.Line;
+  impactMesh?: THREE.Mesh;
+  impactLight?: THREE.PointLight;
+  life: number;
+  maxLife: number;
+}
+
 export class WeaponManager {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
@@ -42,6 +53,7 @@ export class WeaponManager {
   public viewmodelRoot: THREE.Group;
   private shotgunModel!: THREE.Group;
   private rocketModel!: THREE.Group;
+  private railgunModel!: THREE.Group;
   private muzzleFlash!: THREE.PointLight;
   private muzzleFlashMesh!: THREE.Mesh;
 
@@ -55,6 +67,7 @@ export class WeaponManager {
   // Active Projectiles & FX
   private activeRockets: Rocket[] = [];
   private activeTracers: TracerFX[] = [];
+  private activeRailBeams: RailBeamFX[] = [];
 
   constructor(
     scene: THREE.Scene,
@@ -322,7 +335,123 @@ export class WeaponManager {
     this.viewmodelRoot.add(this.rocketModel);
 
     // ----------------------------------------
-    // 3. Muzzle Flash (Shared Dynamic Light & Fire Sparks)
+    // 3. Iconic CPMA High-Tech Railgun Viewmodel
+    // ----------------------------------------
+    this.railgunModel = new THREE.Group();
+
+    const railTitaniumMat = new THREE.MeshStandardMaterial({
+      color: 0x111622,
+      metalness: 0.92,
+      roughness: 0.22
+    });
+    const railSteelMat = new THREE.MeshStandardMaterial({
+      color: 0x222a38,
+      metalness: 0.88,
+      roughness: 0.28
+    });
+    const railGlowCyanMat = new THREE.MeshStandardMaterial({
+      color: 0x00ffff,
+      emissive: 0x00f0ff,
+      emissiveIntensity: 2.2,
+      roughness: 0.1
+    });
+    const railGlowPinkMat = new THREE.MeshStandardMaterial({
+      color: 0xff00cc,
+      emissive: 0xd946ef,
+      emissiveIntensity: 1.8,
+      roughness: 0.2
+    });
+
+    // A. Main Body / Heavy Prismatic Receiver
+    const bodyGeo = new THREE.BoxGeometry(4.2, 5.0, 22.0);
+    const bodyMesh = new THREE.Mesh(bodyGeo, railTitaniumMat);
+    bodyMesh.position.set(0, 0, -11.0);
+    this.railgunModel.add(bodyMesh);
+
+    // B. Twin High-Voltage Acceleration Rails (Top & Bottom magnetic guides)
+    const railGuideGeo = new THREE.BoxGeometry(2.4, 1.4, 30.0);
+    const topRail = new THREE.Mesh(railGuideGeo, railSteelMat);
+    topRail.position.set(0, 2.6, -24.0);
+    this.railgunModel.add(topRail);
+
+    const bottomRail = new THREE.Mesh(railGuideGeo, railSteelMat);
+    bottomRail.position.set(0, -2.6, -24.0);
+    this.railgunModel.add(bottomRail);
+
+    // C. Glowing Central Plasma Accelerator Channel (Between the rails)
+    const coreChannelGeo = new THREE.CylinderGeometry(0.8, 0.8, 28.0, 12);
+    coreChannelGeo.rotateX(Math.PI / 2);
+    const coreChannel = new THREE.Mesh(coreChannelGeo, railGlowCyanMat);
+    coreChannel.position.set(0, 0, -24.0);
+    this.railgunModel.add(coreChannel);
+
+    // D. 4 Solenoid Accelerator Coils / Capacitor Rings along the barrel
+    const coilZPositions = [-16.0, -22.0, -28.0, -34.0];
+    coilZPositions.forEach((cz, idx) => {
+      const ringGeo = new THREE.TorusGeometry(2.8, 0.42, 8, 16);
+      const ringMesh = new THREE.Mesh(ringGeo, idx % 2 === 0 ? railGlowCyanMat : railGlowPinkMat);
+      ringMesh.position.set(0, 0, cz);
+      this.railgunModel.add(ringMesh);
+
+      // Support brackets for coils
+      const bracketGeo = new THREE.BoxGeometry(3.6, 6.2, 0.9);
+      const bracketMesh = new THREE.Mesh(bracketGeo, railTitaniumMat);
+      bracketMesh.position.set(0, 0, cz);
+      this.railgunModel.add(bracketMesh);
+    });
+
+    // E. Heavy Muzzle Nozzle Collar
+    const nozzleCollarGeo = new THREE.BoxGeometry(3.8, 6.8, 2.2);
+    const nozzleCollar = new THREE.Mesh(nozzleCollarGeo, railSteelMat);
+    nozzleCollar.position.set(0, 0, -38.0);
+    this.railgunModel.add(nozzleCollar);
+
+    // F. Top Holographic Railgun Scope
+    const scopeMountGeo = new THREE.BoxGeometry(2.0, 1.6, 12.0);
+    const scopeMount = new THREE.Mesh(scopeMountGeo, railTitaniumMat);
+    scopeMount.position.set(0, 3.2, -10.0);
+    this.railgunModel.add(scopeMount);
+
+    const scopeLensGeo = new THREE.RingGeometry(0.4, 0.8, 16);
+    const scopeLensMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide });
+    const scopeLens = new THREE.Mesh(scopeLensGeo, scopeLensMat);
+    scopeLens.position.set(0, 4.4, -16.0);
+    this.railgunModel.add(scopeLens);
+
+    // Crosshair dot in scope
+    const dotGeo = new THREE.CircleGeometry(0.2, 8);
+    const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const dot = new THREE.Mesh(dotGeo, dotMat);
+    dot.position.set(0, 4.4, -15.98);
+    this.railgunModel.add(dot);
+
+    // G. Rear High-Capacity Battery Pack & Cooling Vents
+    const batteryGeo = new THREE.BoxGeometry(3.8, 4.4, 6.0);
+    const battery = new THREE.Mesh(batteryGeo, railSteelMat);
+    battery.position.set(0, -0.4, 1.5);
+    this.railgunModel.add(battery);
+
+    // Glowing Charge Indicator Bars on battery
+    for (let b = 0; b < 3; b++) {
+      const barGeo = new THREE.BoxGeometry(0.4, 1.2, 0.8);
+      const barMesh = new THREE.Mesh(barGeo, railGlowCyanMat);
+      barMesh.position.set(-2.0, 0.4 - b * 0.8, 1.0);
+      this.railgunModel.add(barMesh);
+    }
+
+    // H. Ergonomic Grip
+    const railGripGeo = new THREE.BoxGeometry(2.2, 7.5, 3.4);
+    railGripGeo.rotateX(-0.35);
+    const railGrip = new THREE.Mesh(railGripGeo, railTitaniumMat);
+    railGrip.position.set(0, -5.2, -4.5);
+    this.railgunModel.add(railGrip);
+
+    // Position in first-person view
+    this.railgunModel.position.set(6.8, -6.6, -12.5);
+    this.viewmodelRoot.add(this.railgunModel);
+
+    // ----------------------------------------
+    // 4. Muzzle Flash (Shared Dynamic Light & Fire Sparks)
     // ----------------------------------------
     this.muzzleFlash = new THREE.PointLight(0xff7711, 0, 220);
     this.muzzleFlash.position.set(6.5, -5.5, -38.0);
@@ -350,13 +479,9 @@ export class WeaponManager {
     if (this.currentWeapon === type && playSound) return;
     this.currentWeapon = type;
 
-    if (type === 'shotgun') {
-      this.shotgunModel.visible = true;
-      this.rocketModel.visible = false;
-    } else {
-      this.shotgunModel.visible = false;
-      this.rocketModel.visible = true;
-    }
+    this.shotgunModel.visible = (type === 'shotgun');
+    this.rocketModel.visible = (type === 'rocket');
+    this.railgunModel.visible = (type === 'railgun');
 
     if (playSound) {
       soundManager.playWeaponSwitch();
@@ -365,8 +490,9 @@ export class WeaponManager {
   }
 
   public toggleWeapon(): void {
-    const next = this.currentWeapon === 'shotgun' ? 'rocket' : 'shotgun';
-    this.switchWeapon(next);
+    const cycle: WeaponType[] = ['shotgun', 'rocket', 'railgun'];
+    const nextIdx = (cycle.indexOf(this.currentWeapon) + 1) % cycle.length;
+    this.switchWeapon(cycle[nextIdx]);
   }
 
   public shoot(): void {
@@ -377,11 +503,16 @@ export class WeaponManager {
       this.fireCooldown = 0.82;
       this.recoilOffset = 4.2;
       this.recoilPitch = 0.08;
-    } else {
+    } else if (this.currentWeapon === 'rocket') {
       this.shootRocket();
       this.fireCooldown = 0.78;
       this.recoilOffset = 6.4;
       this.recoilPitch = 0.15;
+    } else {
+      this.shootRailgun();
+      this.fireCooldown = 1.45;
+      this.recoilOffset = 8.0;
+      this.recoilPitch = 0.18;
     }
 
     // Trigger Muzzle Flash
@@ -588,6 +719,151 @@ export class WeaponManager {
     });
   }
 
+  // ----------------------------------------------------
+  // RAILGUN: Instant Hitscan Deathray (150 Dmg ONE-SHOT) with Quake Spiral FX
+  // ----------------------------------------------------
+  private shootRailgun(): void {
+    soundManager.playRailgunFire();
+
+    const camPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    this.camera.getWorldPosition(camPos);
+    this.camera.getWorldDirection(camDir);
+
+    const maxDist = 7500;
+    const railDamage = 150; // Guaranteed ONE-SHOT kill against 100 HP skeleton bots!
+    const knockback = 580;
+
+    const res = this.botManager.checkRayHit(camPos, camDir, maxDist, railDamage, knockback);
+
+    let endPoint: THREE.Vector3;
+    if (res.hit && res.hitPoint) {
+      endPoint = res.hitPoint;
+      soundManager.playHitSound();
+      this.callbacks.onHitmarker?.();
+      if (res.killed) {
+        this.callbacks.onFrag?.();
+      }
+    } else {
+      // Raycast towards world boundary
+      endPoint = camPos.clone().addScaledVector(camDir, 4500);
+      if (endPoint.y < 0 && camDir.y < -0.001) {
+        const t = -camPos.y / camDir.y;
+        if (t > 0 && t < 4500) {
+          endPoint = camPos.clone().addScaledVector(camDir, t);
+        }
+      }
+    }
+
+    // Spawn the legendary Quake 3 / CPMA Railgun Spiral & Core Beam FX
+    this.createRailgunBeam(camPos, endPoint, res.hit);
+  }
+
+  // Create the iconic Quake 3 Arena / CPMA Railgun Trail:
+  // 1. Intense glowing cyan/white laser core beam
+  // 2. High-speed magenta/violet corkscrew spiral helix wrapping around the core
+  // 3. Dynamic plasma flare and impact flash at hit point
+  private createRailgunBeam(start: THREE.Vector3, end: THREE.Vector3, isDirectHit: boolean): void {
+    const beamGroup = new THREE.Group();
+
+    const dir = end.clone().sub(start);
+    const length = dir.length();
+    if (length < 1) return;
+    const normDir = dir.clone().normalize();
+    const midPoint = start.clone().add(end).multiplyScalar(0.5);
+
+    // 1. Central Core Laser Cylinder (Brilliant neon cyan with white center)
+    const coreGeo = new THREE.CylinderGeometry(0.9, 0.9, length, 8);
+    coreGeo.rotateX(Math.PI / 2);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending
+    });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    coreMesh.position.copy(midPoint);
+    coreMesh.lookAt(end);
+    beamGroup.add(coreMesh);
+
+    // Inner white-hot laser core
+    const innerGeo = new THREE.CylinderGeometry(0.35, 0.35, length, 6);
+    innerGeo.rotateX(Math.PI / 2);
+    const innerMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending
+    });
+    const innerMesh = new THREE.Mesh(innerGeo, innerMat);
+    innerMesh.position.copy(midPoint);
+    innerMesh.lookAt(end);
+    beamGroup.add(innerMesh);
+
+    // 2. The Legendary CPMA Corkscrew Helix (Spiral wrapping around the beam)
+    // Compute perpendicular coordinate basis (u, v) for the spiral
+    const arbitrary = Math.abs(normDir.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const u = new THREE.Vector3().crossVectors(normDir, arbitrary).normalize();
+    const v = new THREE.Vector3().crossVectors(normDir, u).normalize();
+
+    const spiralPoints: THREE.Vector3[] = [];
+    const stepDist = 3.5; // step size in units
+    const spiralRadius = 3.2; // radius of corkscrew
+    const spiralPitch = 28.0; // length of one complete 360-deg rotation
+
+    for (let s = 0; s <= length; s += stepDist) {
+      const angle = (s / spiralPitch) * Math.PI * 2;
+      const pt = start.clone()
+        .addScaledVector(normDir, s)
+        .addScaledVector(u, Math.cos(angle) * spiralRadius)
+        .addScaledVector(v, Math.sin(angle) * spiralRadius);
+      spiralPoints.push(pt);
+    }
+
+    const spiralGeo = new THREE.BufferGeometry().setFromPoints(spiralPoints);
+    const spiralMat = new THREE.LineBasicMaterial({
+      color: 0xd946ef, // CPMA iconic vibrant magenta spiral!
+      transparent: true,
+      opacity: 0.95,
+      linewidth: 2,
+      blending: THREE.AdditiveBlending
+    });
+    const spiralMesh = new THREE.Line(spiralGeo, spiralMat);
+    beamGroup.add(spiralMesh);
+
+    // 3. Impact Plasma Flare at End Point
+    let impactMesh: THREE.Mesh | undefined;
+    let impactLight: THREE.PointLight | undefined;
+
+    const flareGeo = new THREE.SphereGeometry(isDirectHit ? 6.0 : 4.0, 8, 8);
+    const flareMat = new THREE.MeshBasicMaterial({
+      color: isDirectHit ? 0x00ffff : 0xd946ef,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending
+    });
+    impactMesh = new THREE.Mesh(flareGeo, flareMat);
+    impactMesh.position.copy(end);
+    beamGroup.add(impactMesh);
+
+    impactLight = new THREE.PointLight(0x00f0ff, 5.5, 180);
+    impactLight.position.copy(end);
+    beamGroup.add(impactLight);
+
+    this.scene.add(beamGroup);
+
+    this.activeRailBeams.push({
+      group: beamGroup,
+      coreMesh,
+      innerMesh,
+      spiralMesh,
+      impactMesh,
+      impactLight,
+      life: 1.25,
+      maxLife: 1.25
+    });
+  }
+
   // Update rockets, explosions, viewmodel animation
   public update(dt: number, speed: number): void {
     // 1. Fire Cooldown
@@ -608,9 +884,12 @@ export class WeaponManager {
     if (this.currentWeapon === 'shotgun') {
       this.shotgunModel.position.set(6.5 + bobX, -6.5 + bobY, -12.0 + this.recoilOffset);
       this.shotgunModel.rotation.x = this.recoilPitch;
-    } else {
+    } else if (this.currentWeapon === 'rocket') {
       this.rocketModel.position.set(7.5 + bobX, -7.2 + bobY, -13.0 + this.recoilOffset);
       this.rocketModel.rotation.x = this.recoilPitch;
+    } else {
+      this.railgunModel.position.set(6.8 + bobX, -6.6 + bobY, -12.5 + this.recoilOffset);
+      this.railgunModel.rotation.x = this.recoilPitch;
     }
 
     // 3. Update Active Rockets & Continuous Smoke/Fire Trails
@@ -692,6 +971,31 @@ export class WeaponManager {
         this.activeTracers.splice(i, 1);
       }
     }
+
+    // 6. Update Active Quake Railgun Beams & Corkscrew Spirals
+    for (let i = this.activeRailBeams.length - 1; i >= 0; i--) {
+      const rb = this.activeRailBeams[i];
+      rb.life -= dt;
+      const progress = Math.max(0, rb.life / rb.maxLife);
+      const alpha = Math.pow(progress, 1.25);
+
+      (rb.coreMesh.material as THREE.MeshBasicMaterial).opacity = alpha * 0.95;
+      (rb.innerMesh.material as THREE.MeshBasicMaterial).opacity = alpha * 0.95;
+      (rb.spiralMesh.material as THREE.LineBasicMaterial).opacity = alpha * 0.95;
+
+      if (rb.impactMesh) {
+        (rb.impactMesh.material as THREE.MeshBasicMaterial).opacity = Math.pow(progress, 2.0);
+        rb.impactMesh.scale.setScalar(1.0 + (1.0 - progress) * 1.6);
+      }
+      if (rb.impactLight) {
+        rb.impactLight.intensity = Math.pow(progress, 2.5) * 5.5;
+      }
+
+      if (rb.life <= 0) {
+        this.scene.remove(rb.group);
+        this.activeRailBeams.splice(i, 1);
+      }
+    }
   }
 
   // Create explosion shockwave, damage bots, and trigger Rocket Jump
@@ -733,5 +1037,6 @@ export class WeaponManager {
     for (const r of this.activeRockets) this.scene.remove(r.mesh);
     this.explosionFX.dispose();
     for (const t of this.activeTracers) this.scene.remove(t.line);
+    for (const rb of this.activeRailBeams) this.scene.remove(rb.group);
   }
 }

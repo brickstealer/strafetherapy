@@ -56,7 +56,7 @@ export interface TriggerZone {
   name?: string;
 }
 
-export type WeaponType = 'shotgun' | 'rocket';
+export type WeaponType = 'shotgun' | 'rocket' | 'railgun';
 
 export interface GameSettings {
   mouseSensitivity: number;

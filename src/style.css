@@ -740,6 +740,13 @@ html, body {
   border: 1px solid rgba(249, 115, 22, 0.4);
 }
 
+.railgun-badge {
+  color: #e879f9;
+  text-shadow: 0 0 12px rgba(232, 121, 249, 0.8), 0 0 20px rgba(0, 240, 255, 0.5);
+  background: rgba(217, 70, 239, 0.15);
+  border: 1px solid rgba(232, 121, 249, 0.5);
+}
+
 .ammo-val {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
