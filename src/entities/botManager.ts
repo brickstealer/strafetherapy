@@ -479,10 +479,11 @@ export class BotManager {
 
   private async loadSkeletonModels(): Promise<void> {
     const loader = new GLTFLoader();
+    const baseUrl = import.meta.env.BASE_URL || './';
     const modelUrls = [
-      { name: 'Warrior', url: '/models/skeleton_warrior.glb' },
-      { name: 'Minion', url: '/models/skeleton_minion.glb' },
-      { name: 'Rogue', url: '/models/skeleton_rogue.glb' }
+      { name: 'Warrior', url: `${baseUrl}models/skeleton_warrior.glb` },
+      { name: 'Minion', url: `${baseUrl}models/skeleton_minion.glb` },
+      { name: 'Rogue', url: `${baseUrl}models/skeleton_rogue.glb` }
     ];
 
     try {
