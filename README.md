@@ -35,6 +35,13 @@
   - **Air-Strafing:** экспоненциальный разгон скорости синхронными движениями мыши и клавиш `A` / `D`.
   - **CPM Air-Control:** резкие развороты на 90° и 180° в воздухе с зажатой клавишей `W`.
   - **Rocket Jump:** мощные прыжки на взрывной волне под ноги.
+- 🌐 **Real-time WebSocket Multiplayer Deathmatch:**
+  - Полноценная многопользовательская арена в реальном времени с синхронизацией 30 Hz и плавной LERP-интерполяцией движений и анимаций.
+  - **3D Billboard никнеймы и шкалы HP** над головами соперников прямо в трёхмерном мире.
+  - Синхронизированная стрельба (Shotgun, Rocket Launcher, Railgun с вихревыми лучами) и физические **Gibs-взрывы при фраге оппонента**.
+  - **Scoreboard (`Tab`)** в стиле киберспортивного Quake со статистикой фрагов, смертей и пинга.
+  - **Live Killfeed** в правом верхнем углу экрана.
+  - Кастомизация никнейма в меню настроек (`Esc`) с сохранением в `localStorage`.
 - 🏰 **Двухуровневая Готическая Цитадель:**
   - Огромная арена диаметром 6 500 юнитов, 4 радиальных бастиона, факелы с динамическим пламенем и дымом.
   - Второй этаж (`y = 140`) с альтернативной геометрией, скоростными рампами, колоннадами и джамппадами для взлета на верхний ярус.
@@ -63,8 +70,9 @@
 | **`W` (в воздухе)** | CPM Air-Control поворот под 90° / 180° |
 | **`ЛКМ` (Fire)** | Стрельба из текущего оружия (Дробовик / Ракетница / Рейлган) |
 | **`1` / `2` / `3` / `Колесо` / `Q`** | Смена оружия |
+| **`Tab` (зажать)** | Таблица счёта (Scoreboard: Ник, Фраги, Смерти, Пинг) |
 | **`R`** | Мгновенный сброс позиции на стартовую полосу |
-| **`Esc`** | Открыть меню настроек (FOV, Чувствительность, Кровь, Трейлы, Звук) |
+| **`Esc`** | Открыть меню настроек (Никнейм, FOV, Чувствительность, Кровь, Трейлы, Звук) |
 
 ---
 
@@ -72,13 +80,13 @@
 
 ### Вариант 1: Запуск готового образа из GitHub Packages (GHCR)
 ```bash
-docker run -d --name strafetherapy -p 8080:80 ghcr.io/brickstealer/strafetherapy:latest
+docker run -d --name strafetherapy -p 8080:8080 ghcr.io/brickstealer/strafetherapy:latest
 ```
-После запуска игра доступна по адресу: **http://localhost:8080**
+После запуска игра с мультиплеером доступна по адресу: **http://localhost:8080**
 
 ### Вариант 2: Запуск через Docker Compose
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
 ---
@@ -95,10 +103,13 @@ cd strafetherapy
 # 2. Установить зависимости
 pnpm install
 
-# 3. Запустить dev-сервер (по умолчанию на 0.0.0.0:5173)
+# 3. Запустить dev-сервер фронтенда (Vite)
 pnpm run dev
 
-# 4. Собрать production-билд
+# 4. Запустить мультиплеерный сервер (Node.js + WebSockets на порту 8080)
+pnpm run server
+
+# 5. Собрать production-билд
 pnpm run build
 ```
 
@@ -107,6 +118,7 @@ pnpm run build
 ## 🛠️ Стек технологий
 
 - **Ядро:** [TypeScript](https://www.typescriptlang.org/) + [Vite](https://vitejs.dev/)
+- **Мультиплеер:** [Node.js](https://nodejs.org/) + [ws (WebSocket)](https://github.com/websockets/ws) с синхронизацией снапшотов 30 Hz и LERP интерполяцией
 - **Рендерер:** [Three.js](https://threejs.org/) (PCF Soft Shadows, Instanced/Point Particles, Procedural Textures & Audio Synthesizer)
 - **CI/CD:** [GitHub Actions](https://github.com/features/actions) $\rightarrow$ Автодеплой на [GitHub Pages](https://pages.github.com/) + Публикация контейнера в [GitHub Container Registry (GHCR)](https://ghcr.io)
-- **Контейнеризация:** Docker (Multi-stage build на Alpine Linux + Nginx)
+- **Контейнеризация:** Docker (Multi-stage Node.js Alpine с единым HTTP + WS сервером)

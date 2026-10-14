@@ -457,8 +457,13 @@ export class BotManager {
 
   // Cached Realistic Skeleton Templates
   private templates: SkeletonTemplate[] = [];
-  private isLoaded = false;
+  public isLoaded = false;
   private desiredBotCount = 5;
+  public onTemplatesLoaded?: (templates: SkeletonTemplate[]) => void;
+
+  public getTemplates(): SkeletonTemplate[] {
+    return this.templates;
+  }
 
   constructor(scene: THREE.Scene, bounds?: CastleMapBounds, goreSystem?: GoreSystem) {
     this.scene = scene;
@@ -506,6 +511,9 @@ export class BotManager {
 
       this.templates = await Promise.all(loadPromises);
       this.isLoaded = true;
+      if (this.onTemplatesLoaded) {
+        this.onTemplatesLoaded(this.templates);
+      }
 
       // Instantiate desired bots once models are ready
       this.syncBotCount();

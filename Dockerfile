@@ -1,32 +1,39 @@
 # ------------------------------------------------------------------------------
-# Build Stage
+# 1. Build Stage (Client Bundle)
 # ------------------------------------------------------------------------------
 FROM node:22-alpine AS builder
 
-# Enable Corepack and prepare PNPM
 RUN corepack enable && corepack prepare pnpm@latest --activate
-
 WORKDIR /app
 
-# Cache dependencies
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# Copy source code and build production bundle
 COPY . .
 RUN pnpm run build
 
 # ------------------------------------------------------------------------------
-# Production Stage
+# 2. Production Stage (Unified HTTP Game & WebSocket Server)
 # ------------------------------------------------------------------------------
-FROM nginx:alpine
+FROM node:22-alpine
 
-# Replace default nginx config with optimized one
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy compiled assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-EXPOSE 80
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
 
-CMD ["nginx", "-g", "daemon off;"]
+# Copy built frontend assets and server files
+COPY --from=builder /app/dist ./dist
+COPY server ./server
+COPY src/net ./src/net
+COPY src/types.ts ./src/types.ts
+
+ENV NODE_ENV=production
+ENV PORT=8080
+ENV HOST=0.0.0.0
+
+EXPOSE 8080
+
+CMD ["pnpm", "start"]

@@ -820,3 +820,217 @@ html, body {
   right: 1px;
   transform: rotate(45deg);
 }
+
+/* ==========================================================================
+   MULTIPLAYER UI STYLES (Killfeed, Scoreboard, Online Status)
+   ========================================================================== */
+
+/* Online Status Panel in Top Bar */
+.online-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.online-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: pulse-dot 1.5s infinite alternate;
+}
+
+.status-dot.offline {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  100% { transform: scale(1.2); opacity: 1; }
+}
+
+.ping-val {
+  font-size: 0.72rem;
+  color: var(--color-cyan);
+  letter-spacing: 0.05em;
+}
+
+/* Killfeed (Top Right Overlay) */
+.killfeed-container {
+  position: absolute;
+  top: 72px;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  pointer-events: none;
+  z-index: 100;
+  max-width: 380px;
+}
+
+.killfeed-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(11, 15, 25, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 3px solid #ff0055;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  color: #fff;
+  animation: killfeed-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  backdrop-filter: blur(4px);
+}
+
+@keyframes killfeed-in {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.killfeed-killer {
+  font-weight: 700;
+  color: var(--color-cyan);
+}
+
+.killfeed-weapon {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-weight: 800;
+  background: rgba(255, 0, 85, 0.2);
+  color: #ff3366;
+  border: 1px solid rgba(255, 0, 85, 0.4);
+}
+
+.killfeed-victim {
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+/* Scoreboard Overlay (Held via TAB) */
+.scoreboard-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 7, 12, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 500;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.1s ease;
+}
+
+.scoreboard-modal.hidden {
+  display: none;
+  opacity: 0;
+}
+
+.scoreboard-card {
+  width: 90%;
+  max-width: 680px;
+  background: rgba(12, 17, 29, 0.95);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.15), inset 0 0 15px rgba(0, 240, 255, 0.05);
+  border-radius: 8px;
+  padding: 1.5rem 1.8rem;
+}
+
+.scoreboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.scoreboard-title {
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: var(--color-cyan);
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+  margin: 0;
+}
+
+.scoreboard-map {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.scoreboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.scoreboard-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  color: #64748b;
+  letter-spacing: 0.08em;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.scoreboard-table td {
+  padding: 0.55rem 0.6rem;
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.scoreboard-row.is-me {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+}
+
+.scoreboard-row.is-me td {
+  color: #00f0ff;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+}
+
+.rank-col { width: 45px; text-align: center; }
+.frags-col { width: 75px; text-align: right; font-weight: 800; color: #ff0055 !important; }
+.deaths-col { width: 75px; text-align: right; color: #94a3b8 !important; }
+.ping-col { width: 75px; text-align: right; color: #22c55e !important; }
+
+/* Nickname input in preferences modal */
+.setting-input {
+  flex: 2;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: var(--color-cyan);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.setting-input:focus {
+  border-color: var(--color-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+

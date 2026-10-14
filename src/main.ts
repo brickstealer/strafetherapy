@@ -8,6 +8,7 @@ import { Hud } from './ui/hud';
 import { BotManager } from './entities/botManager';
 import { WeaponManager } from './weapons/weapons';
 import { GoreSystem } from './graphics/goreSystem';
+import { NetworkManager } from './net/networkManager';
 
 class Game {
   private renderer!: THREE.WebGLRenderer;
@@ -24,6 +25,7 @@ class Game {
   private botManager!: BotManager;
   private weaponManager!: WeaponManager;
   private goreSystem!: GoreSystem;
+  private network!: NetworkManager;
 
   // Input State
   private input: UserInput = {
@@ -146,6 +148,43 @@ class Game {
     this.botManager.setBotCount(this.hud.settings.botCount);
     this.botManager.setGoreSettings(this.hud.settings.goreLevel, this.hud.settings.bloodDuration);
 
+    // Multiplayer Network Manager
+    this.network = new NetworkManager(
+      this.scene,
+      {
+        onKillfeed: (killer, victim, weapon) => {
+          this.hud.addKillfeedItem(killer, victim, weapon);
+        },
+        onPlayerCountChange: (count, ping) => {
+          this.hud.setOnlineStatus(this.network.isConnected, count, ping);
+        },
+        onRemoteRailBeam: (origin, dir) => {
+          this.weaponManager.renderRemoteRailBeam(origin, dir);
+        },
+        onLocalDamaged: (_damage, hitDir, knockback) => {
+          this.hud.triggerHitmarker();
+          if (hitDir && knockback) {
+            this.pmove.state.velocity.addScaledVector(hitDir, knockback * 0.4);
+          }
+        },
+        onLocalKilled: () => {
+          soundManager.playRespawn();
+          this.resetPlayerPosition();
+        }
+      },
+      this.goreSystem
+    );
+
+    if (this.botManager.isLoaded) {
+      this.network.setTemplates(this.botManager.getTemplates());
+    }
+    this.botManager.onTemplatesLoaded = (templates) => {
+      this.network.setTemplates(templates);
+    };
+
+    this.network.setPlayerName(this.hud.playerNickname);
+    this.network.connect();
+
     this.weaponManager = new WeaponManager(
       this.scene,
       this.camera,
@@ -154,7 +193,10 @@ class Game {
       {
         onHitmarker: () => this.hud.triggerHitmarker(),
         onFrag: () => this.hud.addFrag(),
-        onWeaponChange: (w) => this.hud.setWeapon(w)
+        onWeaponChange: (w) => this.hud.setWeapon(w),
+        onShoot: (weapon, origin, dir) => {
+          this.network.sendShoot(weapon, origin, dir);
+        }
       }
     );
     this.hud.setWeapon(this.weaponManager.currentWeapon);
@@ -191,6 +233,11 @@ class Game {
       },
       onToggleSound: () => {
         soundManager.toggleMute();
+      },
+      onNicknameChange: (name) => {
+        if (this.network) {
+          this.network.setPlayerName(name);
+        }
       }
     });
   }
@@ -199,7 +246,7 @@ class Game {
     // Keyboard Listeners
     window.addEventListener('keydown', (e) => {
       const code = e.code || (e.key === ' ' ? 'Space' : e.key);
-      if (code === 'Space' || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code)) {
+      if (code === 'Space' || code === 'Tab' || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code)) {
         e.preventDefault();
       }
       this.handleKeyEvent(code, true);
@@ -207,7 +254,7 @@ class Game {
 
     window.addEventListener('keyup', (e) => {
       const code = e.code || (e.key === ' ' ? 'Space' : e.key);
-      if (code === 'Space') {
+      if (code === 'Space' || code === 'Tab') {
         e.preventDefault();
       }
       this.handleKeyEvent(code, false);
@@ -327,6 +374,12 @@ class Game {
           document.exitPointerLock();
         }
         break;
+      case 'Tab':
+        this.hud.toggleScoreboard(isDown);
+        if (isDown && this.network) {
+          this.hud.updateScoreboard(this.network.scoreboard, this.network.myId);
+        }
+        break;
     }
   }
 
@@ -420,9 +473,17 @@ class Game {
     // 6. Update Animated Torches & Lights
     this.map.update(now / 1000);
 
-    // 7. Update Bots, Weapons & Gore System
+    // 7. Update Bots, Weapons, Network & Gore System
     this.botManager.update(frameTimeSec, this.camera);
     this.weaponManager.update(frameTimeSec, speed);
+    this.network.sendUpdate(
+      state.position,
+      state.velocity,
+      state.yaw,
+      state.pitch,
+      this.weaponManager.currentWeapon
+    );
+    this.network.update(frameTimeSec, this.camera);
     this.goreSystem.update(frameTimeSec, this.hud.settings.bloodDuration);
 
     // 8. Render Scene

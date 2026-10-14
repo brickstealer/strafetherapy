@@ -9,6 +9,7 @@ export interface WeaponCallbacks {
   onHitmarker?: () => void;
   onFrag?: () => void;
   onWeaponChange?: (weapon: WeaponType) => void;
+  onShoot?: (weapon: WeaponType, origin: THREE.Vector3, dir: THREE.Vector3) => void;
 }
 
 export interface Rocket {
@@ -517,6 +518,14 @@ export class WeaponManager {
 
     // Trigger Muzzle Flash
     this.triggerMuzzleFlash();
+
+    if (this.callbacks.onShoot) {
+      const camPos = new THREE.Vector3();
+      const camDir = new THREE.Vector3();
+      this.camera.getWorldPosition(camPos);
+      this.camera.getWorldDirection(camDir);
+      this.callbacks.onShoot(this.currentWeapon, camPos, camDir);
+    }
   }
 
   private triggerMuzzleFlash(): void {
@@ -862,6 +871,12 @@ export class WeaponManager {
       life: 1.25,
       maxLife: 1.25
     });
+  }
+
+  public renderRemoteRailBeam(start: THREE.Vector3, dir: THREE.Vector3): void {
+    const end = start.clone().addScaledVector(dir.clone().normalize(), 4500);
+    this.createRailgunBeam(start, end, false);
+    soundManager.playRailgunFire();
   }
 
   // Update rockets, explosions, viewmodel animation

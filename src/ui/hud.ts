@@ -1,10 +1,12 @@
 import type { ScoreState, GameSettings, WeaponType } from '../types';
+import type { PlayerNetState } from '../net/types';
 
 export interface HudCallbacks {
   onResume: () => void;
   onResetPosition: () => void;
   onSettingsChange: (settings: GameSettings) => void;
   onToggleSound: () => void;
+  onNicknameChange?: (name: string) => void;
 }
 
 const GORE_LEVEL_LABELS = [
@@ -17,6 +19,10 @@ const GORE_LEVEL_LABELS = [
 
 const BLOOD_DURATION_STEPS = [5, 15, 30, 60, 120, 300, Infinity];
 const BLOOD_DURATION_LABELS = ['5 с', '15 с', '30 с', '1 мин', '2 мин', '5 мин', '∞ Бесконечно'];
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 export class Hud {
   private container: HTMLElement;
@@ -38,6 +44,16 @@ export class Hud {
   private pauseModalEl!: HTMLElement;
   private startPromptEl!: HTMLElement;
   private newRecordBannerEl!: HTMLElement;
+
+  // Multiplayer UI Elements
+  private killfeedEl!: HTMLElement;
+  private scoreboardModalEl!: HTMLElement;
+  private scoreboardBodyEl!: HTMLElement;
+  private onlineCountEl!: HTMLElement;
+  private onlinePingEl!: HTMLElement;
+  private statusDotEl!: HTMLElement;
+  private nicknameInputEl!: HTMLInputElement;
+  public playerNickname = 'Player';
 
   private currentScore = 0;
   private comboMultiplier = 1.0;
@@ -73,8 +89,22 @@ export class Hud {
 
     this.loadHighScores();
     this.loadSettings();
+    this.loadNickname();
     this.buildDom();
     this.attachEventListeners();
+  }
+
+  private loadNickname(): void {
+    try {
+      const saved = localStorage.getItem('strafe_therapy_nickname');
+      if (saved && saved.trim()) {
+        this.playerNickname = saved.trim().substring(0, 16);
+      } else {
+        this.playerNickname = `Quaker#${Math.floor(100 + Math.random() * 900)}`;
+      }
+    } catch {
+      this.playerNickname = 'Quaker';
+    }
   }
 
   private getGoreLevelText(level: number): string {
@@ -198,6 +228,15 @@ export class Hud {
             <div id="hud-weapon-name" class="hud-value weapon-badge">[1] SHOTGUN</div>
             <div class="ammo-val">∞ AMMO</div>
           </div>
+
+          <div class="hud-card online-panel">
+            <div class="hud-label">MULTIPLAYER</div>
+            <div class="online-status-row">
+              <div id="status-dot" class="status-dot offline"></div>
+              <span id="hud-online">OFFLINE</span>
+            </div>
+            <div id="hud-ping" class="ping-val">-- ms</div>
+          </div>
         </div>
 
         <!-- Center Crosshair & Guidance Chevrons -->
@@ -292,6 +331,11 @@ export class Hud {
               <div class="settings-section">
                 <h3>PREFERENCES</h3>
                 <div class="setting-row">
+                  <label for="input-nickname">Никнейм игрока (Nickname)</label>
+                  <input id="input-nickname" type="text" maxlength="16" value="${escapeHtml(this.playerNickname)}" placeholder="Player" class="setting-input" />
+                </div>
+
+                <div class="setting-row">
                   <label for="slider-sens">Mouse Sensitivity</label>
                   <input id="slider-sens" type="range" min="0.0008" max="0.006" step="0.0002" value="${this.settings.mouseSensitivity}" />
                   <span id="val-sens" class="setting-val">${(this.settings.mouseSensitivity * 1000).toFixed(1)}</span>
@@ -363,6 +407,35 @@ export class Hud {
         <div id="start-prompt" class="start-prompt hidden">
           <span>Click to resume / Space to Auto-Hop</span>
         </div>
+
+        <!-- Killfeed (Top Right Overlay) -->
+        <div id="killfeed" class="killfeed-container"></div>
+
+        <!-- Scoreboard Modal (Tab) -->
+        <div id="scoreboard-modal" class="scoreboard-modal hidden">
+          <div class="scoreboard-card">
+            <div class="scoreboard-header">
+              <div>
+                <h2 class="scoreboard-title">LEADERBOARD</h2>
+                <div class="scoreboard-map">CITADEL DEATHMATCH (125 Hz CPMA)</div>
+              </div>
+              <div class="scoreboard-map">HOLD [TAB] TO VIEW</div>
+            </div>
+            <table class="scoreboard-table">
+              <thead>
+                <tr>
+                  <th class="rank-col">#</th>
+                  <th>PLAYER</th>
+                  <th class="frags-col">FRAGS</th>
+                  <th class="deaths-col">DEATHS</th>
+                  <th class="ping-col">PING</th>
+                </tr>
+              </thead>
+              <tbody id="scoreboard-body">
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     `;
 
@@ -385,6 +458,15 @@ export class Hud {
     this.fragsEl = this.container.querySelector('#hud-frags')!;
     this.weaponNameEl = this.container.querySelector('#hud-weapon-name')!;
     this.hitmarkerEl = this.container.querySelector('#hitmarker')!;
+
+    // Multiplayer elements
+    this.killfeedEl = this.container.querySelector('#killfeed')!;
+    this.scoreboardModalEl = this.container.querySelector('#scoreboard-modal')!;
+    this.scoreboardBodyEl = this.container.querySelector('#scoreboard-body')!;
+    this.onlineCountEl = this.container.querySelector('#hud-online')!;
+    this.onlinePingEl = this.container.querySelector('#hud-ping')!;
+    this.statusDotEl = this.container.querySelector('#status-dot')!;
+    this.nicknameInputEl = this.container.querySelector('#input-nickname') as HTMLInputElement;
   }
 
   private attachEventListeners(): void {
@@ -393,6 +475,21 @@ export class Hud {
       e.stopPropagation();
       this.callbacks.onResume();
     });
+
+    if (this.nicknameInputEl) {
+      this.nicknameInputEl.addEventListener('input', () => {
+        const clean = this.nicknameInputEl.value.trim().substring(0, 16) || 'Player';
+        this.playerNickname = clean;
+        try {
+          localStorage.setItem('strafe_therapy_nickname', clean);
+        } catch {
+          // Ignore
+        }
+        if (this.callbacks.onNicknameChange) {
+          this.callbacks.onNicknameChange(clean);
+        }
+      });
+    }
 
     const sensSlider = this.container.querySelector('#slider-sens') as HTMLInputElement;
     const sensVal = this.container.querySelector('#val-sens')!;
@@ -741,5 +838,66 @@ export class Hud {
       strafeSyncPct: this.smoothedSync,
       frags: this.frags
     };
+  }
+
+  public addKillfeedItem(killer: string, victim: string, weapon: WeaponType): void {
+    if (!this.killfeedEl) return;
+    const item = document.createElement('div');
+    item.className = 'killfeed-item';
+    const wpBadge = weapon.toUpperCase();
+    item.innerHTML = `
+      <span class="killfeed-killer">${escapeHtml(killer)}</span>
+      <span class="killfeed-weapon">${wpBadge}</span>
+      <span class="killfeed-victim">${escapeHtml(victim)}</span>
+    `;
+    this.killfeedEl.appendChild(item);
+
+    window.setTimeout(() => {
+      item.style.opacity = '0';
+      item.style.transform = 'translateX(40px)';
+      window.setTimeout(() => item.remove(), 400);
+    }, 4500);
+  }
+
+  public setOnlineStatus(online: boolean, count: number, ping: number): void {
+    if (!this.onlineCountEl || !this.statusDotEl || !this.onlinePingEl) return;
+    if (online) {
+      this.statusDotEl.className = 'status-dot';
+      this.onlineCountEl.textContent = count === 1 ? '1 PLAYER' : `${count} PLAYERS`;
+      this.onlinePingEl.textContent = `${ping} ms`;
+    } else {
+      this.statusDotEl.className = 'status-dot offline';
+      this.onlineCountEl.textContent = 'OFFLINE';
+      this.onlinePingEl.textContent = '-- ms';
+    }
+  }
+
+  public updateScoreboard(players: PlayerNetState[], myId: string | null): void {
+    if (!this.scoreboardBodyEl) return;
+    const sorted = [...players].sort((a, b) => b.frags - a.frags);
+    let html = '';
+    sorted.forEach((p, idx) => {
+      const isMe = p.id === myId;
+      const rowClass = isMe ? 'scoreboard-row is-me' : 'scoreboard-row';
+      html += `
+        <tr class="${rowClass}">
+          <td class="rank-col">${idx + 1}</td>
+          <td>${escapeHtml(p.name)} ${isMe ? '<span style="font-size:0.7rem;opacity:0.8;">(YOU)</span>' : ''}</td>
+          <td class="frags-col">${p.frags}</td>
+          <td class="deaths-col">${p.deaths}</td>
+          <td class="ping-col">${p.ping}ms</td>
+        </tr>
+      `;
+    });
+    this.scoreboardBodyEl.innerHTML = html;
+  }
+
+  public toggleScoreboard(show: boolean): void {
+    if (!this.scoreboardModalEl) return;
+    if (show) {
+      this.scoreboardModalEl.classList.remove('hidden');
+    } else {
+      this.scoreboardModalEl.classList.add('hidden');
+    }
   }
 }
