@@ -78,11 +78,13 @@ export class RemotePlayer {
     const spriteMat = new THREE.SpriteMaterial({
       map: this.nameplateTexture,
       transparent: true,
-      depthTest: false
+      depthTest: false,
+      depthWrite: false
     });
     this.nameplateSprite = new THREE.Sprite(spriteMat);
-    this.nameplateSprite.position.set(0, 126, 0);
-    this.nameplateSprite.scale.set(70, 17.5, 1);
+    this.nameplateSprite.renderOrder = 9999;
+    this.nameplateSprite.position.set(0, 130, 0);
+    this.nameplateSprite.scale.set(72, 18, 1);
     this.mesh.add(this.nameplateSprite);
 
     this.redrawNameplate();
@@ -155,9 +157,10 @@ export class RemotePlayer {
 
     ctx.clearRect(0, 0, w, h);
 
-    // Dark sleek semi-transparent backing card
-    ctx.fillStyle = 'rgba(7, 10, 18, 0.75)';
-    ctx.roundRect(16, 12, w - 32, h - 24, 16);
+    // Dark sleek semi-transparent backing card with rounded corners
+    ctx.fillStyle = 'rgba(7, 10, 18, 0.85)';
+    ctx.beginPath();
+    ctx.roundRect(14, 10, w - 28, h - 20, 16);
     ctx.fill();
 
     // Subtle neon border
@@ -166,22 +169,24 @@ export class RemotePlayer {
     ctx.lineWidth = 4;
     ctx.stroke();
 
-    // Player Nickname
-    ctx.font = 'bold 36px "JetBrains Mono", sans-serif';
+    // Player Nickname (prominent, bold, glowing)
+    ctx.font = 'bold 36px "Rajdhani", "JetBrains Mono", sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.shadowColor = hexStr;
-    ctx.shadowBlur = 12;
-    ctx.fillText(this.name, w * 0.5, 54);
+    ctx.shadowBlur = 14;
+    ctx.fillText(this.name.toUpperCase(), w * 0.5, 46);
     ctx.shadowBlur = 0;
 
     // Health Bar Background Track
-    const barX = 40;
+    const barX = 36;
     const barY = 74;
-    const barW = w - 80;
-    const barH = 22;
+    const barW = w - 72;
+    const barH = 24;
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.beginPath();
     ctx.roundRect(barX, barY, barW, barH, 8);
     ctx.fill();
 
@@ -200,6 +205,7 @@ export class RemotePlayer {
         grad.addColorStop(1, '#f87171');
       }
       ctx.fillStyle = grad;
+      ctx.beginPath();
       ctx.roundRect(barX, barY, barW * pct, barH, 8);
       ctx.fill();
     }
@@ -260,8 +266,10 @@ export class RemotePlayer {
       this.playAction('idle', 0.25);
     }
 
-    // Nameplate always faces local player camera
-    this.nameplateSprite.quaternion.copy(camera.quaternion);
+    // Nameplate distance-based scale compensation so it stays legible at distance
+    const distToCam = camera.position.distanceTo(this.mesh.position);
+    const scaleFactor = Math.max(1.0, Math.min(2.4, distToCam / 500));
+    this.nameplateSprite.scale.set(72 * scaleFactor, 18 * scaleFactor, 1);
   }
 
   public dispose(scene: THREE.Scene): void {

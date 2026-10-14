@@ -53,6 +53,7 @@ export class Hud {
   private onlinePingEl!: HTMLElement;
   private statusDotEl!: HTMLElement;
   private nicknameInputEl!: HTMLInputElement;
+  private myNickEl?: HTMLElement;
   public playerNickname = 'Player';
 
   private currentScore = 0;
@@ -230,7 +231,7 @@ export class Hud {
           </div>
 
           <div class="hud-card online-panel">
-            <div class="hud-label">MULTIPLAYER</div>
+            <div class="hud-label">PILOT: <span id="hud-my-nick" class="my-nick-badge">${escapeHtml(this.playerNickname)}</span></div>
             <div class="online-status-row">
               <div id="status-dot" class="status-dot offline"></div>
               <span id="hud-online">OFFLINE</span>
@@ -467,6 +468,7 @@ export class Hud {
     this.onlinePingEl = this.container.querySelector('#hud-ping')!;
     this.statusDotEl = this.container.querySelector('#status-dot')!;
     this.nicknameInputEl = this.container.querySelector('#input-nickname') as HTMLInputElement;
+    this.myNickEl = this.container.querySelector('#hud-my-nick') as HTMLElement;
   }
 
   private attachEventListeners(): void {
@@ -480,6 +482,9 @@ export class Hud {
       this.nicknameInputEl.addEventListener('input', () => {
         const clean = this.nicknameInputEl.value.trim().substring(0, 16) || 'Player';
         this.playerNickname = clean;
+        if (this.myNickEl) {
+          this.myNickEl.textContent = clean;
+        }
         try {
           localStorage.setItem('strafe_therapy_nickname', clean);
         } catch {

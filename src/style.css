@@ -1034,3 +1034,10 @@ html, body {
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
 }
 
+.my-nick-badge {
+  color: #00f0ff;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+}
+

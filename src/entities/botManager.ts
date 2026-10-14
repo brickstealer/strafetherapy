@@ -30,6 +30,8 @@ export class Bot {
   public radius = 40;
   public height = 110;
   public respawnTimer = 0;
+  public name: string;
+  public colorHex: number;
 
   // AI navigation state
   private targetPos = new THREE.Vector3();
@@ -46,12 +48,25 @@ export class Bot {
 
   // Skinned meshes for hit flashes
   private skinnedMeshes: THREE.SkinnedMesh[] = [];
-  private hpBarFill!: THREE.Mesh;
-  private hpBarGroup!: THREE.Group;
   private eyeLight?: THREE.PointLight;
   public goreSystem?: GoreSystem;
 
-  constructor(scene: THREE.Scene, initialPos: THREE.Vector3, template: SkeletonTemplate, goreSystem?: GoreSystem) {
+  // 3D Billboard Overhead Nameplate & Health Bar
+  private nameplateSprite!: THREE.Sprite;
+  private nameplateCanvas!: HTMLCanvasElement;
+  private nameplateCtx!: CanvasRenderingContext2D;
+  private nameplateTexture!: THREE.CanvasTexture;
+
+  constructor(
+    scene: THREE.Scene,
+    initialPos: THREE.Vector3,
+    template: SkeletonTemplate,
+    goreSystem?: GoreSystem,
+    name = 'Sarge',
+    colorHex = 0xff0055
+  ) {
+    this.name = name;
+    this.colorHex = colorHex;
     this.position = initialPos.clone();
     this.velocity = new THREE.Vector3();
     this.mesh = new THREE.Group();
@@ -69,8 +84,8 @@ export class Bot {
     // 3. Setup Animations
     this.setupAnimations(template.animations);
 
-    // 4. Setup Gothic Health Bar
-    this.buildHealthBar();
+    // 4. Setup 3D Billboard Nameplate & Health Bar
+    this.buildNameplate();
 
     this.mesh.position.copy(this.position);
     scene.add(this.mesh);
@@ -79,7 +94,7 @@ export class Bot {
   }
 
   private setupModelFeatures(): void {
-    const bloodGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0022 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: this.colorHex });
 
     this.model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
@@ -90,13 +105,13 @@ export class Bot {
           this.skinnedMeshes.push(child);
         }
 
-        // Detect eyes node and make them burn with dark hellfire
+        // Detect eyes node and make them burn with hellfire in bot's color
         const name = child.name.toLowerCase();
         if (name.includes('eye')) {
-          child.material = bloodGlowMat;
+          child.material = eyeMat;
           // Add demonic ember light
           if (!this.eyeLight) {
-            this.eyeLight = new THREE.PointLight(0xff1133, 3.2, 70);
+            this.eyeLight = new THREE.PointLight(this.colorHex, 3.2, 70);
             this.eyeLight.position.set(0, 0, 0.2);
             child.add(this.eyeLight);
           }
@@ -175,23 +190,91 @@ export class Bot {
     }
   }
 
-  private buildHealthBar(): void {
-    this.hpBarGroup = new THREE.Group();
-    this.hpBarGroup.position.set(0, 118, 0);
+  private buildNameplate(): void {
+    this.nameplateCanvas = document.createElement('canvas');
+    this.nameplateCanvas.width = 512;
+    this.nameplateCanvas.height = 128;
+    this.nameplateCtx = this.nameplateCanvas.getContext('2d')!;
+    this.nameplateTexture = new THREE.CanvasTexture(this.nameplateCanvas);
+    this.nameplateTexture.minFilter = THREE.LinearFilter;
+    this.nameplateTexture.magFilter = THREE.LinearFilter;
 
-    const bgGeo = new THREE.PlaneGeometry(48, 5.2);
-    const bgMat = new THREE.MeshBasicMaterial({ color: 0x090d16, side: THREE.DoubleSide });
-    const bgMesh = new THREE.Mesh(bgGeo, bgMat);
-    this.hpBarGroup.add(bgMesh);
+    const spriteMat = new THREE.SpriteMaterial({
+      map: this.nameplateTexture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.nameplateSprite = new THREE.Sprite(spriteMat);
+    this.nameplateSprite.renderOrder = 9999;
+    this.nameplateSprite.position.set(0, 130, 0);
+    this.nameplateSprite.scale.set(72, 18, 1);
+    this.mesh.add(this.nameplateSprite);
 
-    const fillGeo = new THREE.PlaneGeometry(45, 3.8);
-    fillGeo.translate(22.5, 0, 0);
-    const fillMat = new THREE.MeshBasicMaterial({ color: 0xdc2626, side: THREE.DoubleSide });
-    this.hpBarFill = new THREE.Mesh(fillGeo, fillMat);
-    this.hpBarFill.position.set(-22.5, 0, 0.1);
-    this.hpBarGroup.add(this.hpBarFill);
+    this.redrawNameplate();
+  }
 
-    this.mesh.add(this.hpBarGroup);
+  public redrawNameplate(): void {
+    const ctx = this.nameplateCtx;
+    const w = this.nameplateCanvas.width;
+    const h = this.nameplateCanvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Dark sleek semi-transparent backing card with rounded corners
+    ctx.fillStyle = 'rgba(7, 10, 18, 0.85)';
+    ctx.beginPath();
+    ctx.roundRect(14, 10, w - 28, h - 20, 16);
+    ctx.fill();
+
+    // Subtle neon border matching bot color
+    const hexStr = '#' + this.colorHex.toString(16).padStart(6, '0');
+    ctx.strokeStyle = hexStr;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Nickname with [BOT] tag in bold Rajdhani font
+    ctx.font = 'bold 36px "Rajdhani", "JetBrains Mono", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = hexStr;
+    ctx.shadowBlur = 14;
+    ctx.fillText(`[BOT] ${this.name.toUpperCase()}`, w * 0.5, 46);
+    ctx.shadowBlur = 0;
+
+    // Health Bar Background Track
+    const barX = 36;
+    const barY = 74;
+    const barW = w - 72;
+    const barH = 24;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW, barH, 8);
+    ctx.fill();
+
+    // Health Bar Fill
+    const pct = Math.max(0, Math.min(1.0, this.hp / this.maxHp));
+    if (pct > 0) {
+      const grad = ctx.createLinearGradient(barX, 0, barX + barW * pct, 0);
+      if (pct > 0.5) {
+        grad.addColorStop(0, '#22c55e');
+        grad.addColorStop(1, '#4ade80');
+      } else if (pct > 0.25) {
+        grad.addColorStop(0, '#eab308');
+        grad.addColorStop(1, '#facc15');
+      } else {
+        grad.addColorStop(0, '#ef4444');
+        grad.addColorStop(1, '#f87171');
+      }
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, barW * pct, barH, 8);
+      ctx.fill();
+    }
+
+    this.nameplateTexture.needsUpdate = true;
   }
 
   public pickNewTarget(): void {
@@ -239,9 +322,8 @@ export class Bot {
       this.goreSystem.spawnBloodHit(this.position, hitDir, goreLevel, bloodDuration);
     }
 
-    // Update HP bar
-    const pct = Math.max(0, this.hp / this.maxHp);
-    this.hpBarFill.scale.set(pct, 1, 1);
+    // Update overhead 3D billboard nameplate & HP bar
+    this.redrawNameplate();
 
     if (this.hp <= 0) {
       this.die(hitDir, goreLevel, bloodDuration);
@@ -260,7 +342,7 @@ export class Bot {
   public die(hitDir?: THREE.Vector3, goreLevel: number = 3, bloodDuration: number = Infinity): void {
     this.isAlive = false;
     this.respawnTimer = 2.8;
-    this.hpBarGroup.visible = false;
+    this.nameplateSprite.visible = false;
 
     // Brutal Gibbing: Skeleton explodes into flying gory bones & flesh chunks!
     if (this.goreSystem && goreLevel > 0) {
@@ -278,11 +360,11 @@ export class Bot {
   public respawn(spawnPos: THREE.Vector3): void {
     this.isAlive = true;
     this.hp = this.maxHp;
-    this.hpBarFill.scale.set(1, 1, 1);
     this.position.copy(spawnPos);
     this.velocity.set(0, 0, 0);
     this.mesh.position.copy(this.position);
-    this.hpBarGroup.visible = true;
+    this.nameplateSprite.visible = true;
+    this.redrawNameplate();
     this.model.visible = true; // Restore skeleton mesh visibility on respawn
 
     // Resurrect / crawl from ground animation
@@ -306,8 +388,10 @@ export class Bot {
       return;
     }
 
-    // Orient health bar towards camera
-    this.hpBarGroup.quaternion.copy(camera.quaternion);
+    // Dynamic distance scale compensation for overhead billboard nameplate
+    const distToCam = camera.position.distanceTo(this.mesh.position);
+    const scaleFactor = Math.max(1.0, Math.min(2.4, distToCam / 500));
+    this.nameplateSprite.scale.set(72 * scaleFactor, 18 * scaleFactor, 1);
 
     // Damage Flash highlight
     if (this.flashTimer > 0) {
@@ -437,6 +521,8 @@ export class Bot {
 
   public dispose(scene: THREE.Scene): void {
     scene.remove(this.mesh);
+    this.nameplateTexture.dispose();
+    this.nameplateSprite.material.dispose();
     this.model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.geometry.dispose();
@@ -446,6 +532,38 @@ export class Bot {
     });
   }
 }
+
+const BOT_NAMES = [
+  'Xaero',
+  'Sarge',
+  'Phobos',
+  'Crash',
+  'Bones',
+  'Visor',
+  'Doom',
+  'Keel',
+  'Razor',
+  'Anarki',
+  'Hunter',
+  'Bitterman',
+  'Klesk',
+  'Sorlag',
+  'Slash',
+  'Lucy',
+  'Gorilla',
+  'Tank Jr.'
+];
+
+const BOT_COLORS = [
+  0x00f0ff, // Electric Cyan
+  0xff3b30, // Crimson Red
+  0x39ff14, // Acid Green
+  0xff9500, // Fiery Orange
+  0xbd00ff, // Neon Purple
+  0xffea00, // Electric Gold
+  0x00ffaa, // Mint Green
+  0xff007f  // Hot Pink
+];
 
 export class BotManager {
   public bots: Bot[] = [];
@@ -543,7 +661,10 @@ export class BotManager {
       const spawnPos = this.getRandomSpawnPosition();
       // Pick random skeleton archetype (Warrior with sword & shield, Rogue with hood & daggers, Minion)
       const template = this.templates[Math.floor(Math.random() * this.templates.length)];
-      const bot = new Bot(this.scene, spawnPos, template, this.goreSystem);
+      const botIdx = this.bots.length;
+      const botName = BOT_NAMES[botIdx % BOT_NAMES.length];
+      const botColor = BOT_COLORS[botIdx % BOT_COLORS.length];
+      const bot = new Bot(this.scene, spawnPos, template, this.goreSystem, botName, botColor);
       this.bots.push(bot);
     }
   }

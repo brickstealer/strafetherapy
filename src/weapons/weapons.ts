@@ -7,7 +7,7 @@ import { ExplosionFXManager } from './explosionFX';
 
 export interface WeaponCallbacks {
   onHitmarker?: () => void;
-  onFrag?: () => void;
+  onFrag?: (victimName?: string) => void;
   onWeaponChange?: (weapon: WeaponType) => void;
   onShoot?: (weapon: WeaponType, origin: THREE.Vector3, dir: THREE.Vector3) => void;
 }
@@ -556,6 +556,7 @@ export class WeaponManager {
 
     let anyHit = false;
     let anyKill = false;
+    let lastKilledName: string | undefined;
 
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
@@ -571,7 +572,10 @@ export class WeaponManager {
       const res = this.botManager.checkRayHit(camPos, rayDir, maxDist, damagePerPellet, knockback);
       if (res.hit) {
         anyHit = true;
-        if (res.killed) anyKill = true;
+        if (res.killed) {
+          anyKill = true;
+          if (res.bot) lastKilledName = `[BOT] ${res.bot.name.toUpperCase()}`;
+        }
       }
 
       const tracerEnd = camPos.clone().addScaledVector(rayDir, res.hit ? 400 : 900);
@@ -583,7 +587,7 @@ export class WeaponManager {
       this.callbacks.onHitmarker?.();
     }
     if (anyKill) {
-      this.callbacks.onFrag?.();
+      this.callbacks.onFrag?.(lastKilledName);
     }
   }
 
@@ -751,7 +755,8 @@ export class WeaponManager {
       soundManager.playHitSound();
       this.callbacks.onHitmarker?.();
       if (res.killed) {
-        this.callbacks.onFrag?.();
+        const victimName = res.bot ? `[BOT] ${res.bot.name.toUpperCase()}` : undefined;
+        this.callbacks.onFrag?.(victimName);
       }
     } else {
       // Raycast towards world boundary

@@ -192,7 +192,12 @@ class Game {
       this.pmove,
       {
         onHitmarker: () => this.hud.triggerHitmarker(),
-        onFrag: () => this.hud.addFrag(),
+        onFrag: (victimName?: string) => {
+          this.hud.addFrag();
+          if (victimName) {
+            this.hud.addKillfeedItem(this.network.myName, victimName, this.weaponManager.currentWeapon);
+          }
+        },
         onWeaponChange: (w) => this.hud.setWeapon(w),
         onShoot: (weapon, origin, dir) => {
           this.network.sendShoot(weapon, origin, dir);
