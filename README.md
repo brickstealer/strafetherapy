@@ -103,14 +103,18 @@ cd strafetherapy
 # 2. Установить зависимости
 pnpm install
 
-# 3. Запустить dev-сервер фронтенда (Vite)
+# 3. Запустить полный Dev-режим (Front с Hot Reload + Мультиплеерный сервер с auto-restart)
 pnpm run dev
 
-# 4. Запустить мультиплеерный сервер (Node.js + WebSockets на порту 8080)
-pnpm run server
+# Либо запустить компоненты раздельно:
+pnpm run dev:client   # Только фронтенд (Vite HMR на порту 5173)
+pnpm run dev:server   # Только WebSocket сервер (tsx watch на порту 3001)
 
-# 5. Собрать production-билд
+# 4. Собрать production-билд
 pnpm run build
+
+# 5. Запустить собранный production-сервер
+pnpm run start
 ```
 
 ---

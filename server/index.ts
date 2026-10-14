@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DIST_DIR = path.resolve(__dirname, '../dist');
 
-const PORT = parseInt(process.env.PORT || '8080', 10);
+const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 
 // -----------------------------------------------------------------------------
@@ -506,6 +506,16 @@ setInterval(() => {
 // -----------------------------------------------------------------------------
 // 5. Start Server
 // -----------------------------------------------------------------------------
+server.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use.`);
+    console.error(`💡 Try setting another port with PORT=<port> (e.g. PORT=3002 pnpm run dev)`);
+  } else {
+    console.error('Server error:', err);
+  }
+  process.exit(1);
+});
+
 server.listen(PORT, HOST, () => {
   console.log(`=======================================================`);
   console.log(`🎮 Strafe Therapy Unified Game & WebSocket Server`);

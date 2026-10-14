@@ -89,14 +89,14 @@ export class NetworkManager {
 
     let wsUrl = url;
     if (!wsUrl) {
-      const isHttps = window.location.protocol === 'https:';
-      const wsProto = isHttps ? 'wss:' : 'ws:';
-      // In dev mode (port 5173), default server is on port 8080
-      const host =
-        window.location.port === '5173'
-          ? `${window.location.hostname}:8080`
-          : window.location.host;
-      wsUrl = `${wsProto}//${host}/ws`;
+      if (import.meta.env?.VITE_WS_URL) {
+        wsUrl = import.meta.env.VITE_WS_URL;
+      } else {
+        const isHttps = window.location.protocol === 'https:';
+        const wsProto = isHttps ? 'wss:' : 'ws:';
+        // In dev mode (Vite proxy) and production, connect directly to current host/ws
+        wsUrl = `${wsProto}//${window.location.host}/ws`;
+      }
     }
 
     try {

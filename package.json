@@ -5,7 +5,9 @@
   "type": "module",
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"client,server\" -c \"cyan.bold,magenta.bold\" \"pnpm run dev:client\" \"pnpm run dev:server\"",
+    "dev:client": "vite --host 0.0.0.0",
+    "dev:server": "tsx watch server/index.ts",
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "start": "tsx server/index.ts",
@@ -14,6 +16,7 @@
   "devDependencies": {
     "@types/three": "^0.186.0",
     "@types/ws": "^8.18.2",
+    "concurrently": "^10.0.6",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   },
