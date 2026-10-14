@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: ghcr.io/brickstealer/strafetherapy:latest
     container_name: strafetherapy
     restart: unless-stopped
     ports:
