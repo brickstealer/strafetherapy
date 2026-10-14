@@ -536,6 +536,70 @@ export class ExplosionFXManager {
     }
   }
 
+  public prewarm(warmupGroup: THREE.Group): void {
+    // 1. Trail & Explosion Smoke Puffs
+    const puffMat = new THREE.SpriteMaterial({
+      map: this.atlas.smokeTexture,
+      color: 0x888888,
+      transparent: true,
+      opacity: 0.01,
+      depthWrite: false,
+      blending: THREE.NormalBlending
+    });
+    warmupGroup.add(new THREE.Sprite(puffMat));
+
+    // 2. Fireball Plasma Billows
+    const fireMat = new THREE.SpriteMaterial({
+      map: this.atlas.smokeTexture,
+      color: 0xff6600,
+      transparent: true,
+      opacity: 0.01,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    warmupGroup.add(new THREE.Sprite(fireMat));
+
+    // 3. Shrapnel & Spark Embers
+    const emberMat = new THREE.SpriteMaterial({
+      map: this.atlas.sparkTexture,
+      color: 0xffcc33,
+      transparent: true,
+      opacity: 0.01,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    warmupGroup.add(new THREE.Sprite(emberMat));
+
+    // 4. Supersonic Shockwave Ring
+    const shockGeo = new THREE.PlaneGeometry(2, 2);
+    const shockMat = new THREE.MeshBasicMaterial({
+      map: this.atlas.shockwaveTexture,
+      transparent: true,
+      opacity: 0.01,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    });
+    warmupGroup.add(new THREE.Mesh(shockGeo, shockMat));
+
+    // 5. Scorch Decal Mesh
+    const scorchGeo = new THREE.PlaneGeometry(2, 2);
+    const scorchMat = new THREE.MeshBasicMaterial({
+      map: this.atlas.scorchTexture,
+      transparent: true,
+      opacity: 0.01,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1.2,
+      polygonOffsetUnits: -1.2
+    });
+    warmupGroup.add(new THREE.Mesh(scorchGeo, scorchMat));
+
+    // 6. Detonation Flash PointLight
+    const flashLight = new THREE.PointLight(0xff7711, 0.1, 10);
+    warmupGroup.add(flashLight);
+  }
+
   public dispose(): void {
     for (const p of this.activePuffs) this.scene.remove(p.sprite);
     for (const e of this.activeEmbers) this.scene.remove(e.mesh);

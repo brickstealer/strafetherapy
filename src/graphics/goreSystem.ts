@@ -784,6 +784,32 @@ export class GoreSystem {
     this.drops = [];
   }
 
+  public prewarm(warmupGroup: THREE.Group): void {
+    // 1. Decal Materials
+    const planeGeo = new THREE.PlaneGeometry(10, 10);
+    warmupGroup.add(new THREE.Mesh(planeGeo, this.poolMaterial));
+    warmupGroup.add(new THREE.Mesh(planeGeo, this.splatterMaterial));
+    warmupGroup.add(new THREE.Mesh(planeGeo, this.wallDripMaterial));
+    warmupGroup.add(new THREE.Mesh(planeGeo, this.dropletMaterial));
+
+    // 2. Blood particle drops cloud
+    warmupGroup.add(this.dropPointsMesh);
+
+    // 3. Gib bone and flesh materials
+    const boneMat = new THREE.MeshStandardMaterial({
+      color: 0xddd0b8,
+      roughness: 0.5,
+      metalness: 0.1
+    });
+    const fleshMat = new THREE.MeshStandardMaterial({
+      color: 0x5a0307,
+      roughness: 0.25,
+      metalness: 0.2
+    });
+    warmupGroup.add(new THREE.Mesh(new THREE.BoxGeometry(4, 4, 4), boneMat));
+    warmupGroup.add(new THREE.Mesh(new THREE.DodecahedronGeometry(3), fleshMat));
+  }
+
   public dispose(): void {
     this.clearAll();
     this.scene.remove(this.dropPointsMesh);

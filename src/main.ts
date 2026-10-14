@@ -206,9 +206,37 @@ class Game {
     );
     this.hud.setWeapon(this.weaponManager.currentWeapon);
 
+    soundManager.init();
     soundManager.setVolume(this.hud.settings.volume);
     this.trail.setLifetime(this.hud.settings.trailDuration);
     this.pmove.setSpeedMultiplier(this.hud.settings.speedMultiplier);
+
+    // Pre-warm and compile all 3D geometries, materials, shaders, and audio buffers
+    this.prewarmGameResources();
+  }
+
+  private prewarmGameResources(): void {
+    const warmupGroup = new THREE.Group();
+    warmupGroup.position.set(0, -9000, 0);
+    this.scene.add(warmupGroup);
+
+    try {
+      // 1. Prewarm Weapon models (Rocket, Railgun, Shotgun) & ExplosionFX
+      this.weaponManager.prewarm(warmupGroup);
+
+      // 2. Prewarm GoreSystem (blood decals, particles, gib chunks)
+      this.goreSystem.prewarm(warmupGroup);
+
+      // 3. Compile all shaders against the active scene and camera
+      this.renderer.compile(this.scene, this.camera);
+
+      // 4. Perform one warm-up render call to push programs & buffers to GPU VRAM
+      this.renderer.render(this.scene, this.camera);
+    } catch (err) {
+      console.warn('[WARMUP] Resource prewarming encountered an issue:', err);
+    } finally {
+      this.scene.remove(warmupGroup);
+    }
   }
 
   private initUI(): void {

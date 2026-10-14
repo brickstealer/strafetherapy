@@ -69,6 +69,7 @@ export class WeaponManager {
   private activeRockets: Rocket[] = [];
   private activeTracers: TracerFX[] = [];
   private activeRailBeams: RailBeamFX[] = [];
+  private rocketTemplate!: THREE.Group;
 
   constructor(
     scene: THREE.Scene,
@@ -89,6 +90,7 @@ export class WeaponManager {
     this.camera.add(this.viewmodelRoot);
 
     this.buildViewmodels();
+    this.buildRocketTemplate();
     this.switchWeapon('shotgun', false);
   }
 
@@ -594,16 +596,8 @@ export class WeaponManager {
   // ----------------------------------------------------
   // ROCKET LAUNCHER: Detailed Rocket Projectile with Dynamic Flame & Trail
   // ----------------------------------------------------
-  private shootRocket(): void {
-    soundManager.playRocketFire();
-
-    const camPos = new THREE.Vector3();
-    const camDir = new THREE.Vector3();
-    this.camera.getWorldPosition(camPos);
-    this.camera.getWorldDirection(camDir);
-
-    // Build Realistic 3D Rocket Model
-    const rocketMesh = new THREE.Group();
+  private buildRocketTemplate(): void {
+    this.rocketTemplate = new THREE.Group();
 
     // 1. Aerodynamic Titanium Ogive Nosecone
     const noseGeo = new THREE.ConeGeometry(2.0, 5.0, 16);
@@ -615,7 +609,7 @@ export class WeaponManager {
     });
     const nose = new THREE.Mesh(noseGeo, noseMat);
     nose.position.set(0, 0, -8.5);
-    rocketMesh.add(nose);
+    this.rocketTemplate.add(nose);
 
     // Detonator Pin
     const pinGeo = new THREE.CylinderGeometry(0.25, 0.25, 1.6, 8);
@@ -623,7 +617,7 @@ export class WeaponManager {
     const pinMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.95 });
     const pin = new THREE.Mesh(pinGeo, pinMat);
     pin.position.set(0, 0, -11.5);
-    rocketMesh.add(pin);
+    this.rocketTemplate.add(pin);
 
     // 2. High-Explosive Warhead Section with Hazard Ring
     const warheadGeo = new THREE.CylinderGeometry(2.0, 2.0, 4.0, 16);
@@ -635,7 +629,7 @@ export class WeaponManager {
     });
     const warhead = new THREE.Mesh(warheadGeo, warheadMat);
     warhead.position.set(0, 0, -4.5);
-    rocketMesh.add(warhead);
+    this.rocketTemplate.add(warhead);
 
     // 3. Rocket Motor Body (Military Olive Titanium)
     const bodyGeo = new THREE.CylinderGeometry(2.0, 2.0, 10.0, 16);
@@ -647,7 +641,7 @@ export class WeaponManager {
     });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.position.set(0, 0, 2.0);
-    rocketMesh.add(body);
+    this.rocketTemplate.add(body);
 
     // 4. Aerodynamic X-Fins (4 swept tail fins)
     const finMat = new THREE.MeshStandardMaterial({
@@ -661,7 +655,7 @@ export class WeaponManager {
       const ang = (i * Math.PI) / 2;
       fin.position.set(Math.cos(ang) * 2.4, Math.sin(ang) * 2.4, 4.5);
       fin.rotation.z = ang;
-      rocketMesh.add(fin);
+      this.rocketTemplate.add(fin);
     }
 
     // 5. Motor Exhaust Laval Nozzle (Glowing with inner heat)
@@ -675,12 +669,11 @@ export class WeaponManager {
     });
     const nozzle = new THREE.Mesh(nozzleGeo, nozzleMat);
     nozzle.position.set(0, 0, 7.8);
-    rocketMesh.add(nozzle);
+    this.rocketTemplate.add(nozzle);
 
     // 6. Volumetric Dual Flame Plume (Inner Plasma Core + Outer Fire Plume)
-    // Inner brilliant white-hot core
     const coreFlameGeo = new THREE.ConeGeometry(0.85, 6.0, 10);
-    coreFlameGeo.rotateX(-Math.PI / 2); // points backward along +Z
+    coreFlameGeo.rotateX(-Math.PI / 2);
     const coreFlameMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
@@ -688,10 +681,10 @@ export class WeaponManager {
       blending: THREE.AdditiveBlending
     });
     const flameCore = new THREE.Mesh(coreFlameGeo, coreFlameMat);
+    flameCore.name = 'flameCore';
     flameCore.position.set(0, 0, 11.5);
-    rocketMesh.add(flameCore);
+    this.rocketTemplate.add(flameCore);
 
-    // Outer roaring orange-yellow flame cone
     const outerFlameGeo = new THREE.ConeGeometry(1.6, 12.0, 12);
     outerFlameGeo.rotateX(-Math.PI / 2);
     const outerFlameMat = new THREE.MeshBasicMaterial({
@@ -701,13 +694,32 @@ export class WeaponManager {
       blending: THREE.AdditiveBlending
     });
     const flameOuter = new THREE.Mesh(outerFlameGeo, outerFlameMat);
+    flameOuter.name = 'flameOuter';
     flameOuter.position.set(0, 0, 14.5);
-    rocketMesh.add(flameOuter);
+    this.rocketTemplate.add(flameOuter);
 
-    // Dynamic Rocket Thruster Point Light
     const rocketLight = new THREE.PointLight(0xff6600, 4.5, 130);
+    rocketLight.name = 'rocketLight';
     rocketLight.position.set(0, 0, 8.5);
-    rocketMesh.add(rocketLight);
+    this.rocketTemplate.add(rocketLight);
+  }
+
+  // ----------------------------------------------------
+  // ROCKET LAUNCHER: Detailed Rocket Projectile with Dynamic Flame & Trail
+  // ----------------------------------------------------
+  private shootRocket(): void {
+    soundManager.playRocketFire();
+
+    const camPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    this.camera.getWorldPosition(camPos);
+    this.camera.getWorldDirection(camDir);
+
+    // Instant clone from pre-warmed prototype (no geometry/material allocations)
+    const rocketMesh = this.rocketTemplate.clone(true);
+    const flameCore = rocketMesh.getObjectByName('flameCore') as THREE.Mesh;
+    const flameOuter = rocketMesh.getObjectByName('flameOuter') as THREE.Mesh;
+    const rocketLight = rocketMesh.getObjectByName('rocketLight') as THREE.PointLight;
 
     // Align rotation with camera direction
     rocketMesh.quaternion.copy(this.camera.quaternion);
@@ -1050,6 +1062,44 @@ export class WeaponManager {
     const line = new THREE.Line(geo, mat);
     this.scene.add(line);
     this.activeTracers.push({ line, life: 0.12, maxLife: 0.12 });
+  }
+
+  public prewarm(warmupGroup: THREE.Group): void {
+    // 1. Prewarm Rocket Prototype
+    warmupGroup.add(this.rocketTemplate.clone(true));
+
+    // 2. Prewarm Railgun Beam meshes
+    const beamGroup = new THREE.Group();
+    const coreGeo = new THREE.CylinderGeometry(0.9, 0.9, 100, 8);
+    coreGeo.rotateX(Math.PI / 2);
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.01 });
+    beamGroup.add(new THREE.Mesh(coreGeo, coreMat));
+
+    const innerGeo = new THREE.CylinderGeometry(2.4, 2.4, 100, 8);
+    innerGeo.rotateX(Math.PI / 2);
+    const innerMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffff,
+      transparent: true,
+      opacity: 0.01,
+      blending: THREE.AdditiveBlending
+    });
+    beamGroup.add(new THREE.Mesh(innerGeo, innerMat));
+
+    const spiralGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 1, 10)]);
+    const spiralMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.01 });
+    beamGroup.add(new THREE.Line(spiralGeo, spiralMat));
+
+    const impactLight = new THREE.PointLight(0x00f0ff, 0.1, 10);
+    beamGroup.add(impactLight);
+    warmupGroup.add(beamGroup);
+
+    // 3. Prewarm Shotgun Tracer line
+    const tracerGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 10)]);
+    const tracerMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.01 });
+    warmupGroup.add(new THREE.Line(tracerGeo, tracerMat));
+
+    // 4. Prewarm Explosion FX
+    this.explosionFX.prewarm(warmupGroup);
   }
 
   public dispose(): void {

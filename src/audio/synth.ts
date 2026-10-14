@@ -10,6 +10,9 @@ export class SoundManager {
   private isMuted: boolean = false;
   private volume: number = 0.5;
   private isInitialized: boolean = false;
+  private shotgunNoiseBuffer: AudioBuffer | null = null;
+  private rocketFireNoiseBuffer: AudioBuffer | null = null;
+  private rocketExplosionNoiseBuffer: AudioBuffer | null = null;
 
   constructor() {
     // AudioContext will be initialized on first user interaction
@@ -27,6 +30,7 @@ export class SoundManager {
       this.masterGain.connect(this.ctx.destination);
 
       this.initWindNoise();
+      this.initWeaponAudioBuffers();
       this.isInitialized = true;
     } catch (err) {
       console.warn('Web Audio API not supported or blocked:', err);
@@ -97,6 +101,36 @@ export class SoundManager {
     this.windGain.connect(this.masterGain);
 
     this.windSource.start(0);
+  }
+
+  // Pre-bake noise buffers so weapon firing has zero allocation and zero math loops during gameplay
+  private initWeaponAudioBuffers(): void {
+    if (!this.ctx) return;
+    const rate = this.ctx.sampleRate;
+
+    // 1. Shotgun blast powder buffer
+    const sgLen = Math.floor(rate * 0.28);
+    this.shotgunNoiseBuffer = this.ctx.createBuffer(1, sgLen, rate);
+    const sgData = this.shotgunNoiseBuffer.getChannelData(0);
+    for (let i = 0; i < sgLen; i++) {
+      sgData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (rate * 0.04));
+    }
+
+    // 2. Rocket launcher exhaust burn buffer
+    const rfLen = Math.floor(rate * 0.42);
+    this.rocketFireNoiseBuffer = this.ctx.createBuffer(1, rfLen, rate);
+    const rfData = this.rocketFireNoiseBuffer.getChannelData(0);
+    for (let i = 0; i < rfLen; i++) {
+      rfData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (rate * 0.2));
+    }
+
+    // 3. Rocket explosion shockwave buffer
+    const rxLen = Math.floor(rate * 0.7);
+    this.rocketExplosionNoiseBuffer = this.ctx.createBuffer(1, rxLen, rate);
+    const rxData = this.rocketExplosionNoiseBuffer.getChannelData(0);
+    for (let i = 0; i < rxLen; i++) {
+      rxData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (rate * 0.16));
+    }
   }
 
   // Update wind volume and filter cutoff every frame based on horizontal speed
@@ -279,29 +313,25 @@ export class SoundManager {
     osc.start(now);
     osc.stop(now + 0.23);
 
-    // 2. White noise powder explosion burst
-    const bufferSize = Math.floor(this.ctx.sampleRate * 0.28);
-    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.04));
+    // 2. Pre-baked white noise powder explosion burst
+    if (this.shotgunNoiseBuffer) {
+      const noiseSource = this.ctx.createBufferSource();
+      noiseSource.buffer = this.shotgunNoiseBuffer;
+
+      const noiseFilter = this.ctx.createBiquadFilter();
+      noiseFilter.type = 'lowpass';
+      noiseFilter.frequency.setValueAtTime(2800, now);
+      noiseFilter.frequency.exponentialRampToValueAtTime(400, now + 0.25);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.65, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+      noiseSource.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+      noiseSource.start(now);
     }
-    const noiseSource = this.ctx.createBufferSource();
-    noiseSource.buffer = noiseBuffer;
-
-    const noiseFilter = this.ctx.createBiquadFilter();
-    noiseFilter.type = 'lowpass';
-    noiseFilter.frequency.setValueAtTime(2800, now);
-    noiseFilter.frequency.exponentialRampToValueAtTime(400, now + 0.25);
-
-    const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.65, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-
-    noiseSource.connect(noiseFilter);
-    noiseFilter.connect(noiseGain);
-    noiseGain.connect(this.masterGain);
-    noiseSource.start(now);
 
     // 3. Pump rack mechanical slide (at 0.28s)
     const pumpTime = now + 0.28;
@@ -349,30 +379,26 @@ export class SoundManager {
     osc.start(now);
     osc.stop(now + 0.25);
 
-    // 3. Rocket motor roaring exhaust hiss
-    const bufferSize = Math.floor(this.ctx.sampleRate * 0.42);
-    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.2));
+    // 3. Pre-baked rocket motor roaring exhaust hiss
+    if (this.rocketFireNoiseBuffer) {
+      const noiseSource = this.ctx.createBufferSource();
+      noiseSource.buffer = this.rocketFireNoiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(950, now);
+      filter.frequency.linearRampToValueAtTime(2400, now + 0.18);
+      filter.Q.setValueAtTime(3.0, now);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.45, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+      noiseSource.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+      noiseSource.start(now);
     }
-    const noiseSource = this.ctx.createBufferSource();
-    noiseSource.buffer = noiseBuffer;
-
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(950, now);
-    filter.frequency.linearRampToValueAtTime(2400, now + 0.18);
-    filter.Q.setValueAtTime(3.0, now);
-
-    const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.45, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-
-    noiseSource.connect(filter);
-    filter.connect(noiseGain);
-    noiseGain.connect(this.masterGain);
-    noiseSource.start(now);
   }
 
   // Massive Rocket Blast explosion (detonation crack + rumbling sub-bass + fiery shockwave)
@@ -406,29 +432,25 @@ export class SoundManager {
     sub.start(now);
     sub.stop(now + 0.72);
 
-    // 3. Fiery Shockwave and burning debris turbulence
-    const bufferSize = Math.floor(this.ctx.sampleRate * 0.7);
-    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.16));
+    // 3. Pre-baked fiery shockwave and burning debris turbulence
+    if (this.rocketExplosionNoiseBuffer) {
+      const noiseSource = this.ctx.createBufferSource();
+      noiseSource.buffer = this.rocketExplosionNoiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2400, now);
+      filter.frequency.exponentialRampToValueAtTime(140, now + 0.65);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.95, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+      noiseSource.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+      noiseSource.start(now);
     }
-    const noiseSource = this.ctx.createBufferSource();
-    noiseSource.buffer = noiseBuffer;
-
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(2400, now);
-    filter.frequency.exponentialRampToValueAtTime(140, now + 0.65);
-
-    const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.95, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-
-    noiseSource.connect(filter);
-    filter.connect(noiseGain);
-    noiseGain.connect(this.masterGain);
-    noiseSource.start(now);
   }
 
   // Classic crisp Quake Hit Beep (instant positive feedback on damage)
