@@ -87,16 +87,16 @@ export class NetworkManager {
       }
     }
 
-    let wsUrl = url;
-    if (!wsUrl) {
-      if (import.meta.env?.VITE_WS_URL) {
-        wsUrl = import.meta.env.VITE_WS_URL;
-      } else {
-        const isHttps = window.location.protocol === 'https:';
-        const wsProto = isHttps ? 'wss:' : 'ws:';
-        // In dev mode (Vite proxy) and production, connect directly to current host/ws
-        wsUrl = `${wsProto}//${window.location.host}/ws`;
-      }
+    let wsUrl: string;
+    if (url) {
+      wsUrl = url;
+    } else if (import.meta.env?.VITE_WS_URL) {
+      wsUrl = String(import.meta.env.VITE_WS_URL);
+    } else {
+      const isHttps = window.location.protocol === 'https:';
+      const wsProto = isHttps ? 'wss:' : 'ws:';
+      // In dev mode (Vite proxy) and production, connect directly to current host/ws
+      wsUrl = `${wsProto}//${window.location.host}/ws`;
     }
 
     try {
